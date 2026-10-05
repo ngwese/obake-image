@@ -1,0 +1,4 @@
+# pinned Buildroot release and download cache for offline image builds
+os/buildroot/vendor/buildroot-*.tar.gz filter=lfs diff=lfs merge=lfs -text
+os/buildroot/vendor/dl/** filter=lfs diff=lfs merge=lfs -text
+os/buildroot/vendor/efi-stub/** filter=lfs diff=lfs merge=lfs -text

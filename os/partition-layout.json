@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "note": "Shared by the image build and the installer. Labels and GPT type GUIDs are stable across installs and architectures.",
+  "sectorSizeBytes": 512,
+  "alignmentMiB": 1,
+  "partitions": [
+    {
+      "order": 1,
+      "role": "esp",
+      "label": "OBKA_ESP",
+      "typeGuid": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+      "sizeMiB": 1024,
+      "filesystem": "vfat",
+      "mount": "/boot/efi",
+      "content": "systemd-boot, per-slot unified kernel images, BLS entries"
+    },
+    {
+      "order": 2,
+      "role": "root_a",
+      "label": "OBKA_ROOT_A",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 4096,
+      "filesystem": "ext4",
+      "mount": "/",
+      "content": "read-only rootfs slot A"
+    },
+    {
+      "order": 3,
+      "role": "root_b",
+      "label": "OBKA_ROOT_B",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 4096,
+      "filesystem": "ext4",
+      "mount": "/",
+      "content": "read-only rootfs slot B"
+    },
+    {
+      "order": 4,
+      "role": "persist",
+      "label": "OBKA_PERSIST",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 1024,
+      "filesystem": "ext4",
+      "mount": "/persist",
+      "content": "etc overlay upper/work, persisted /var subset, machine-specific seed"
+    },
+    {
+      "order": 5,
+      "role": "user",
+      "label": "OBKA_USER",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 0,
+      "grow": true,
+      "filesystem": "ext4",
+      "mount": "/home",
+      "content": "user data; never modified by updates or preserving reinstalls"
+    }
+  ]
+}

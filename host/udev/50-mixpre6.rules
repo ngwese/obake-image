@@ -1,0 +1,3 @@
+# SoundDevices MixPre 6, switch to configuration 2
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0926", ATTRS{idProduct}=="0206", RUN+="/usr/sbin/usb_modeswitch -v 0x0926 -p 0x0206 -u 2"
+

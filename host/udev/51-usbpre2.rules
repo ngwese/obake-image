@@ -1,0 +1,3 @@
+# SoundDevices USBPre 2, start jack on attach
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0926", ATTRS{idProduct}=="0202", RUN+="/usr/bin/systemctl start jack@usbpre"
+

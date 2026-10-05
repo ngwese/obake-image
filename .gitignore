@@ -1,0 +1,18 @@
+# os image build artifacts
+/.build/
+/dist/
+/os/buildroot/vendor/dl/**/.lock
+
+# verification harness artifacts
+verification/qemu/*.log
+verification/qemu/install-work/
+
+# singularity build artifacts
+*.sif
+
+# sbcl build artifacts
+*.bin
+*.core
+
+# macOS metadata
+.DS_Store
