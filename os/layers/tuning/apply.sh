@@ -156,3 +156,5 @@ ln -sf /usr/lib/systemd/system/polkit.service \
 chown -R 0:0 "$rootfs/etc/ssh" 2>/dev/null || true
 # polkit only trusts rules owned by root.
 chown -R 0:0 "$rootfs/etc/polkit-1" 2>/dev/null || true
+# /etc/hosts is bind-mounted into containers by Singularity; keep it root-owned.
+chown 0:0 "$rootfs/etc/hosts" 2>/dev/null || true

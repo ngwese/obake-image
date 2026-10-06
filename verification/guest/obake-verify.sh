@@ -50,6 +50,11 @@ check_singularity() {
 	[ "$(singularity --version 2>/dev/null)" = "singularity-ce version $stamp" ]
 }
 
+# Singularity bind-mounts these files into containers; they must exist.
+check_singularity_mounts() {
+	[ -e /etc/hosts ] && [ -e /etc/localtime ] && [ -e /etc/resolv.conf ]
+}
+
 # DNS must resolve names (systemd-resolved over DHCP).
 check_dns() {
 	getent hosts deb.debian.org >/dev/null 2>&1
@@ -130,6 +135,7 @@ run etc-overlay check_etc_overlay
 run var-contract check_var_contract
 run user-partition check_user_partition
 run singularity check_singularity
+run singularity-mounts check_singularity_mounts
 run realtime-kernel check_realtime_kernel
 run dns check_dns
 run avahi check_avahi
