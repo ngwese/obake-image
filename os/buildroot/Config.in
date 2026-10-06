@@ -1,0 +1,5 @@
+menu "obake host configuration"
+
+# Board and package options are introduced by later changes in this change.
+
+endmenu

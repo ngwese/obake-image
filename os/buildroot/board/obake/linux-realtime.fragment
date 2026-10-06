@@ -1,0 +1,13 @@
+# Realtime (PREEMPT_RT) configuration for the obake host kernel.
+#
+# PREEMPT_RT has been part of the mainline kernel since 6.12, so enabling the
+# preemption choice and a 1000 Hz tick is sufficient; no out-of-tree RT patchset
+# is applied. This fragment is merged onto the board's base kernel config.
+#
+# CONFIG_PREEMPT_RT is hidden behind CONFIG_EXPERT, so EXPERT must be enabled
+# for the preemption choice to take effect.
+CONFIG_EXPERT=y
+CONFIG_PREEMPT_RT=y
+CONFIG_HZ_1000=y
+CONFIG_HIGH_RES_TIMERS=y
+CONFIG_NO_HZ_IDLE=y

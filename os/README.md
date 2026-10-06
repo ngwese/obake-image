@@ -2,7 +2,102 @@
 
 Image build for the obake host operating system.
 
-## Layer model
+The host image is built with Buildroot from a pinned release (see
+`buildroot/`). The earlier layered Debian build is retained under this
+directory until it is retired; it is documented at the end of this file.
+
+## Buildroot build
+
+### Layout
+
+| Path                        | Purpose                                          |
+|-----------------------------|--------------------------------------------------|
+| `buildroot/external.desc`   | `BR2_EXTERNAL` tree identity                      |
+| `buildroot/Config.in`       | external tree menu                                |
+| `buildroot/configs/`        | board defconfigs (`obake_aarch64`, `obake_x86_64`)|
+| `buildroot/board/obake/`    | kernel configs, realtime fragment, build hooks    |
+| `buildroot/package/`        | in-tree packages (added by later changes)         |
+| `buildroot/pins.json`       | pinned Buildroot release and kernel source        |
+| `buildroot/build.sh`        | verified build wrapper                            |
+
+Buildroot cross-compiles for the target and never executes target binaries, so
+any Linux host architecture can build any target image; no emulation or binfmt
+handler is required.
+
+### Pins
+
+`buildroot/pins.json` is the single source of truth for the base:
+
+- the Buildroot release (currently `2026.02.3`, the current LTS), with its
+  tarball URL and SHA-256;
+- the realtime kernel source (currently `7.2.9`), with its tarball URL and
+  SHA-256.
+
+`build.sh` verifies both hashes before building, so an unchanged `pins.json`
+always selects the same base userland and kernel. Bumping either pin and
+rebuilding is the only way the base changes.
+
+Buildroot downloads every package from `sources.buildroot.net`
+(`BR2_PRIMARY_SITE` in the defconfigs); hashes are still checked, so the mirror
+is transport only. Set `DL_DIR` to a populated directory to build offline.
+
+### Kernel
+
+The realtime kernel is built from the pinned source with the board's base
+config plus `board/obake/linux-realtime.fragment`. PREEMPT_RT has been part of
+mainline since 6.12, so the fragment enables `CONFIG_PREEMPT_RT` and a 1000 Hz
+tick without any out-of-tree patchset. `post-build.sh` records the built kernel
+version under `/etc/obake/kernel` and refuses to produce an image whose kernel
+is not realtime.
+
+### Building
+
+Run on a Linux host or inside a Linux container:
+
+```
+image/os/buildroot/build.sh obake_aarch64_defconfig
+image/os/buildroot/build.sh obake_x86_64_defconfig
+```
+
+The wrapper downloads and verifies the pinned Buildroot release, seeds the
+verified kernel tarball into Buildroot's download cache, then runs the build.
+Extra arguments are passed to the final `make`, for example:
+
+```
+image/os/buildroot/build.sh obake_aarch64_defconfig -j"$(nproc)"
+```
+
+Environment overrides:
+
+| Variable            | Default                         | Meaning                     |
+|---------------------|---------------------------------|-----------------------------|
+| `OBAKE_WORK`        | `image/.build/buildroot`        | source, download and output |
+| `DL_DIR`            | `<OBAKE_WORK>/dl`               | Buildroot download cache    |
+| `OBAKE_IMAGE_VERSION` | `buildroot/VERSION`           | version recorded in the image |
+
+### Outputs
+
+Images are emitted under `$OBAKE_WORK/output/<defconfig>/images/`:
+
+- `Image` / `bzImage`, device trees, and the rootfs `rootfs.ext4` and
+  `rootfs.tar`;
+- `/etc/obake/kernel` and `/etc/obake/image-version` are baked into the rootfs.
+
+Per-slot unified kernel images and signed, versioned artifacts are added by
+later changes.
+
+## Partition layout
+
+`partition-layout.json` is the single source of truth for partition roles,
+labels, and GPT type GUIDs. The installer and `scripts/make-disk.sh` read the
+same file.
+
+## Legacy Debian build
+
+The following layered Debian build is retained until it is retired by the
+`buildroot-base-image` change.
+
+### Layer model
 
 The image is built from ordered, independently replaceable layers. Rebasing on a
 newer Debian release means bumping the base pin in `manifest.json` and
@@ -24,7 +119,7 @@ overlay and a `files/` tree.
 
 `host/udev/*.rules` and `host/jack/*` are consumed by the tuning layer.
 
-## Building
+#### Building
 
 Build inside the containerized environment so the same commands work on macOS
 arm64 and Windows 11 WSL x86_64 (see `../verification/README.md`):
@@ -49,7 +144,7 @@ Environment overrides:
 Two boards share one base: building with `BOARD=generic` and `BOARD=rk35xx`
 produces images that differ only in the board overlay.
 
-## Outputs
+#### Outputs
 
 For a given architecture and slot, the build emits into `dist/os/<arch>/`:
 
@@ -67,13 +162,7 @@ Signing and verification use `scripts/sign.sh` and
 `scripts/verify-signature.sh`. With no key configured, only checksums are
 written.
 
-## Partition layout
-
-`partition-layout.json` is the single source of truth for partition roles,
-labels, and GPT type GUIDs. The installer and `scripts/make-disk.sh` read the
-same file.
-
-## Verification
+#### Verification
 
 ```
 verification/build-env/run.sh bash -c 'MAKE_DISK=1 os/build.sh && verification/qemu/boot-test.sh dist/os/amd64/disk-a.img'

@@ -1,0 +1,13 @@
+{
+  "note": "Pinned inputs for the obake Buildroot image build. This file is the single source of truth for the Buildroot release and the realtime kernel source; build.sh verifies both hashes before building. Bumping either pin and rebuilding is the only way the base changes.",
+  "buildroot": {
+    "release": "2026.02.3",
+    "url": "https://buildroot.org/downloads/buildroot-2026.02.3.tar.gz",
+    "sha256": "65528a544f1e07c2f5ec487beca483bd380a6af8351a45f3649a19a0e8b63de2"
+  },
+  "kernel": {
+    "version": "7.2.9",
+    "url": "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.9.tar.xz",
+    "sha256": "b4c5dfbe51a364a6c7f03869200f88c8e1f77403539005f14b7fc6bc91b8d8ba"
+  }
+}
