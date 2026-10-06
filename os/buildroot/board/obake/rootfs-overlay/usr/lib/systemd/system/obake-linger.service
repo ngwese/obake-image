@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the obake user manager (session bus for JACK D-Bus)
+After=systemd-logind.service
+Requires=systemd-logind.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'uid=$(id -u obake); loginctl enable-linger obake; systemctl start "user-runtime-dir@$uid.service"; systemctl start "user@$uid.service"'
+
+[Install]
+WantedBy=multi-user.target

@@ -71,7 +71,7 @@ fi
 # Files copied from the rootfs overlay keep the build user's ownership; polkit
 # and sshd's StrictModes require root-owned configuration.
 for p in etc/hosts etc/hostname etc/polkit-1 etc/ssh etc/systemd etc/udev \
-	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d; do
+	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d usr/lib/systemd; do
 	[ -e "${target_dir}/$p" ] || continue
 	chown -R 0:0 "${target_dir}/$p"
 done

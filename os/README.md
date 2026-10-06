@@ -48,6 +48,13 @@ bindings, so the host carries no Python runtime; drive `jackdbus` over its
 D-Bus interface. Use it instead of the in-tree `BR2_PACKAGE_JACK2_DBUS`, which
 selects Python solely for `jack_control`.
 
+Because `jackdbus` is D-Bus activated, the overlay also provides a per-user
+session bus for `obake`: the standard systemd user `dbus.socket`/`dbus.service`
+units (Buildroot does not package them), enabled on the user manager, with the
+manager started at boot by `obake-linger.service`. `org.jackaudio.service` is
+then activatable on `unix:path=/run/user/<uid>/bus`, which the future
+`obake-launcher` will use to activate and configure `jackd` over D-Bus.
+
 `rtkit` is not included: Buildroot has no `rtkit` package, and realtime
 scheduling and locked memory are provided by the `limits.d` grants and the
 PREEMPT_RT kernel. Further meta-packages (developer tooling, audio-over-IP) are
