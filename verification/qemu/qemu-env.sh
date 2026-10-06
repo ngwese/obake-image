@@ -52,8 +52,37 @@ fi
 OBKA_QEMU_CORES="${OBKA_QEMU_CORES:-4}"
 OBKA_QEMU_CACHE="${OBKA_QEMU_CACHE:-none}"
 OBKA_QEMU_SMP="cores=${OBKA_QEMU_CORES},threads=1,sockets=1"
+# Guest RAM in MiB. qemu-user emulation (the emulated linux/amd64 container on
+# macOS) cannot allocate a 2 GiB guest; set OBKA_QEMU_MEM=1024 there.
+OBKA_QEMU_MEM="${OBKA_QEMU_MEM:-2048}"
 # Convenience: the disk cache/aio options applied to every block device.
 OBKA_QEMU_DISK_OPTS="cache=${OBKA_QEMU_CACHE},aio=${OBKA_QEMU_AIO}"
 
+# OVMF/EDK2 firmware. Linux distributions install it under /usr/share/OVMF;
+# Homebrew's QEMU ships EDK2 with the emulator under its share directory.
+if [ "$(uname -s)" = "Darwin" ]; then
+	qemu_share="$(brew --prefix qemu 2>/dev/null || printf /opt/homebrew/opt/qemu)/share/qemu"
+	OVMF_CODE="${OVMF_CODE:-$qemu_share/edk2-x86_64-code.fd}"
+	OVMF_VARS="${OVMF_VARS:-$qemu_share/edk2-i386-vars.fd}"
+fi
+
+# coreutils `timeout` is absent on macOS. Provide a minimal shim so the
+# harnesses run natively there, where a single-translation (native arm64 QEMU)
+# TCG guest boots far faster than under qemu-user nested emulation.
+if ! command -v timeout >/dev/null 2>&1; then
+	timeout() {
+		local duration="$1"; shift
+		"$@" &
+		local cmd_pid=$!
+		( sleep "$duration"; kill -TERM "$cmd_pid" 2>/dev/null ) &
+		local watcher_pid=$!
+		wait "$cmd_pid"; local rc=$?
+		kill "$watcher_pid" 2>/dev/null
+		wait "$watcher_pid" 2>/dev/null
+		return "$rc"
+	}
+fi
+
 export OBKA_QEMU_ACCEL_NAME OBKA_QEMU_CPU OBKA_QEMU_AIO OBKA_QEMU_CORES
-export OBKA_QEMU_CACHE OBKA_QEMU_SMP OBKA_QEMU_DISK_OPTS
+export OBKA_QEMU_CACHE OBKA_QEMU_SMP OBKA_QEMU_DISK_OPTS OBKA_QEMU_MEM
+export OVMF_CODE OVMF_VARS

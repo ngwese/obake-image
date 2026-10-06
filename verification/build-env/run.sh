@@ -18,4 +18,9 @@ if [ -e /dev/kvm ]; then
   run_args+=(--device /dev/kvm)
 fi
 
+# Keep the unpacked rootfs off the host bind mount: mmdebstrap must chown the
+# extracted tree to root, which shared filesystems (e.g. VirtioFS on macOS)
+# reject. The final artifacts are still written to the mounted dist/ tree.
+run_args+=(--env "WORK=${OBKA_WORK:-/var/tmp/obake-build}")
+
 docker run "${run_args[@]}" "$image" "$@"

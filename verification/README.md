@@ -16,7 +16,11 @@ verification/build-env/run.sh os/build.sh
 ```
 
 `run.sh` builds the container image, then runs the given command inside it with
-the repository mounted at `/work`.
+the repository mounted at `/work`. The unpacked rootfs is kept in a
+container-local work directory (`WORK`, default `/var/tmp/obake-build`): the
+build must `chown` the tree to root, which the macOS shared filesystem
+(VirtioFS) rejects. Only the final artifacts are written to the mounted
+`dist/` tree.
 
 Environment overrides:
 
@@ -24,6 +28,18 @@ Environment overrides:
 |-----------------------|-------------------|--------------------------------|
 | `OBKA_BUILD_IMAGE`    | `obake-build-env` | container image tag            |
 | `OBKA_BUILD_PLATFORM` | `linux/amd64`     | container platform             |
+| `OBKA_WORK`           | `/var/tmp/obake-build` | container-local work dir  |
+
+macOS arm64 prerequisite: Docker Desktop's bundled `qemu-x86_64` user emulator
+is too old to run the Go toolchain used to build Singularity CE from source
+(it dies with `internal compiler error`/segfaults). Register a current
+emulator once per Docker VM boot:
+
+```
+docker run --privileged --rm tonistiigi/binfmt --install amd64
+```
+
+The build itself then needs no host-specific configuration.
 
 ## Hardware acceleration
 
@@ -33,6 +49,7 @@ The QEMU harnesses auto-detect the best accelerator via `qemu/qemu-env.sh`:
 |-------------------------|---------------|--------|--------------------------|
 | Linux / WSL2 (nested)   | `kvm`         | `host` | `cache=none,aio=native`  |
 | Windows-native QEMU     | `whpx`/`hax`  | `host` | `cache=none,aio=threads` |
+| macOS arm64 (native)    | `tcg`         | `max`  | `cache=none,aio=threads` |
 | none available          | `tcg`         | `max`  | `cache=none,aio=threads` |
 
 On Windows 11 WSL2, enable the "Virtual Machine Platform"/nested virtualization
@@ -43,9 +60,22 @@ with `if=virtio`, the SMP topology is explicit
 (`-cpu host`). The harnesses are headless (`-nographic`, serial on stdio), so no
 GPU/QXL/SPICE device is configured.
 
+macOS arm64 has no KVM. Run the harnesses on the host (not inside the
+container) so QEMU executes natively; the bundled Homebrew QEMU + EDK2 firmware
+are auto-detected by `qemu-env.sh`. Running `qemu-system-x86_64` inside the
+emulated `linux/amd64` container is possible but far too slow to reach a login
+prompt before systemd's device timeout (and cannot allocate a 2 GiB guest), so
+it is not used for gating.
+
+```
+verification/qemu/boot-test.sh dist/os/amd64/disk-a.img
+```
+
 Override with `OBKA_QEMU_ACCEL`, `OBKA_QEMU_CPU`, `OBKA_QEMU_CORES`,
-`OBKA_QEMU_CACHE`, or `OBKA_QEMU_AIO` (e.g. `OBKA_QEMU_ACCEL=tcg` to force
-software emulation, or `OBKA_QEMU_AIO=io_uring` where supported).
+`OBKA_QEMU_MEM`, `OBKA_QEMU_CACHE`, or `OBKA_QEMU_AIO` (e.g.
+`OBKA_QEMU_ACCEL=tcg` to force software emulation, or `OBKA_QEMU_AIO=io_uring`
+where supported). Inside the container, set these within the container command
+(`run.sh` does not forward the host environment).
 
 ## QEMU checks
 
@@ -128,3 +158,11 @@ byte-for-byte reproducible because `mke2fs -d` is ordered by directory iteration
 order; the tarball is the canonical reproducible layer artifact. The WSL x86_64
 record is `reproducibility/wsl-x86_64.sha256`; the macOS arm64 record is
 `reproducibility/macos-arm64.sha256` (task 1.2a), and task 1.2c compares them.
+
+Note: the base suite is pinned only by name against the rolling
+`deb.debian.org` mirror, so artifacts drift as Debian trixie is updated. The
+committed `wsl-x86_64.sha256` predates later build-input changes (e.g. the
+`systemd-resolved`/avahi/git tuning additions) and no longer matches a current
+build; a cross-host comparison needs both records regenerated from the same
+package set (ideally a pinned snapshot). A same-revision macOS rebuild is
+byte-identical, so the build is deterministic per host.

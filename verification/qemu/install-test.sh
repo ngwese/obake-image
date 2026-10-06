@@ -30,7 +30,7 @@ printf '[install-test] accel=%s cpu=%s smp=%s\n' \
   "$OBKA_QEMU_ACCEL_NAME" "$OBKA_QEMU_CPU" "$OBKA_QEMU_SMP" >&2
 timeout "$timeout_s" qemu-system-x86_64 \
   -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-  -m 2048 -smp "$OBKA_QEMU_SMP" -no-reboot \
+  -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
   -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
   -drive if=pflash,format=raw,file="$vars" \
   -drive if=none,id=inst,format=raw,file="$installer","$OBKA_QEMU_DISK_OPTS" \

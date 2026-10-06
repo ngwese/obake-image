@@ -112,7 +112,7 @@ log "installing to $target"
 vlog "install OVMF vars: $install_vars"
 run_capture "$work/install.log" timeout "$install_timeout" qemu-system-x86_64 \
   -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-  -m 2048 -smp "$OBKA_QEMU_SMP" -no-reboot \
+  -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
   -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
   -drive if=pflash,format=raw,file="$install_vars" \
   -drive if=none,id=inst,format=raw,file="$installer","$OBKA_QEMU_DISK_OPTS" \
@@ -132,7 +132,7 @@ printf '\n[dev-vm]   ssh -i %s -p %s -o StrictHostKeyChecking=no obake@127.0.0.1
   "$key" "$port" >&2
 exec qemu-system-x86_64 \
   -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-  -m 2048 -smp "$OBKA_QEMU_SMP" -no-reboot \
+  -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
   -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
   -drive if=pflash,format=raw,file="$boot_vars" \
   -drive file="$target",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \

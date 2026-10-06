@@ -73,7 +73,7 @@ run_installer() {
   set +e
   timeout "$timeout_s" qemu-system-x86_64 \
     -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-    -m 2048 -smp "$OBKA_QEMU_SMP" -no-reboot \
+    -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
     -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
     -drive if=pflash,format=raw,file="$vars" \
     -drive if=none,id=inst,format=raw,file="$installer","$OBKA_QEMU_DISK_OPTS" \
@@ -111,7 +111,7 @@ boot() {
   set +e
   timeout "$boot_timeout" qemu-system-x86_64 \
     -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-    -m 2048 -smp "$OBKA_QEMU_SMP" -no-reboot \
+    -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
     -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
     -drive if=pflash,format=raw,file="$efi_vars" \
     -drive file="$target",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
