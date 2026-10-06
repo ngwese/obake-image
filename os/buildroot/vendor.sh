@@ -32,11 +32,17 @@ kver="$(pin kernel.version)"
 ksha="$(pin kernel.sha256)"
 
 src_tar="$work/buildroot-$br_release.tar.gz"
-[ -f "$src_tar" ] || {
-	printf 'error: %s missing; run a build first\n' "$src_tar" >&2
+dst_tar="$here/vendor/buildroot-$br_release.tar.gz"
+if [ -f "$src_tar" ]; then
+	printf '%s  %s\n' "$br_sha" "$src_tar" | sha256sum -c -
+elif [ -f "$dst_tar" ]; then
+	# Already vendored; nothing to refresh.
+	printf '%s  %s\n' "$br_sha" "$dst_tar" | sha256sum -c -
+	src_tar=""
+else
+	printf 'error: Buildroot %s tarball missing\n' "$br_release" >&2
 	exit 1
-}
-printf '%s  %s\n' "$br_sha" "$src_tar" | sha256sum -c -
+fi
 
 [ -f "$dl/linux-$kver.tar.xz" ] || {
 	printf 'error: %s missing; run a build first\n' "$dl/linux-$kver.tar.xz" >&2
@@ -45,7 +51,7 @@ printf '%s  %s\n' "$br_sha" "$src_tar" | sha256sum -c -
 printf '%s  %s\n' "$ksha" "$dl/linux-$kver.tar.xz" | sha256sum -c -
 
 mkdir -p "$here/vendor/dl"
-cp -f "$src_tar" "$here/vendor/"
+[ -n "$src_tar" ] && cp -f "$src_tar" "$here/vendor/"
 rsync -rltD --no-owner --no-group --delete --exclude='.lock' \
 	"$dl/" "$here/vendor/dl/"
 

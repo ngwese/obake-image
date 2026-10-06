@@ -1,0 +1,21 @@
+config BR2_PACKAGE_OBAKE_RUNTIME
+	bool "obake runtime layer"
+	select BR2_PACKAGE_ALSA_UTILS
+	select BR2_PACKAGE_JACK2
+	select BR2_PACKAGE_USB_MODESWITCH
+	select BR2_PACKAGE_NFTABLES
+	select BR2_PACKAGE_AVAHI
+	select BR2_PACKAGE_AVAHI_DAEMON
+	select BR2_PACKAGE_NSS_MDNS
+	select BR2_PACKAGE_LIBCURL
+	select BR2_PACKAGE_LIBCURL_CURL
+	select BR2_PACKAGE_IPROUTE2
+	select BR2_PACKAGE_SUDO
+	select BR2_PACKAGE_GIT
+	help
+	  The obake shapes runtime layer: the audio and networking runtime plus
+	  the container runtime that shapes build and run on. This meta-package
+	  selects its member packages so a defconfig names the layer once.
+	  Additional runtime members (the Singularity container runtime) and
+	  further meta-packages (developer tooling, audio-over-IP) are added by
+	  later changes.

@@ -1,5 +1,6 @@
 menu "obake host configuration"
 
 source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-host-config/Config.in"
+source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-runtime/Config.in"
 
 endmenu
