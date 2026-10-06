@@ -80,6 +80,9 @@ deterministic pass or fail by matching a marker in the captured serial log.
 - `qemu/integration-test.sh [arch]` — full install → customize → update → reboot
   → forced failed update → revert on a target disk, asserting the writable
   contract and an unchanged user partition.
+- `qemu/dev-vm.sh` — developer helper: build with an SSH key, install to a
+  virtual disk, and boot it with SSH forwarded for inspection. See
+  `../docs/dev-qemu.md`.
 - `update-server.sh <bundle-dir> [port]` — development update service for a
   build host (HTTP, or HTTPS with `UPDATE_SERVER_TLS=1`).
 - `build-singularity-stage.sh <version> <sha256> <dir>` — build a staged
