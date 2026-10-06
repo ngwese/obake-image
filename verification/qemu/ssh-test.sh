@@ -84,6 +84,22 @@ if ssh_run 'touch /obake-root-probe' 2>/dev/null; then
   fail "user was able to write to the read-only root"
 fi
 
-kill "$qemu_pid" 2>/dev/null || true
+log "checking polkit-granted systemctl as obake"
+if ! ssh_run 'systemctl restart obake-launcher.service' >/dev/null 2>&1; then
+  fail "obake could not manage a unit via polkit without authentication"
+fi
+
+# Power control should also be granted; the guest then powers off and QEMU
+# exits (the run uses -no-reboot).
+log "checking polkit-granted poweroff as obake"
+ssh_run 'systemctl poweroff' >/dev/null 2>&1 || true
+for _ in $(seq 1 60); do
+  kill -0 "$qemu_pid" 2>/dev/null || break
+  sleep 1
+done
+if kill -0 "$qemu_pid" 2>/dev/null; then
+  kill "$qemu_pid" 2>/dev/null || true
+  fail "obake could not power off the host via polkit"
+fi
 trap - EXIT
-printf 'PASS: SSH access and directory contract enforced\n'
+printf 'PASS: SSH access, directory contract, and polkit systemctl management\n'

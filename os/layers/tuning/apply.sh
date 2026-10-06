@@ -145,9 +145,14 @@ ln -sf /usr/lib/systemd/system/systemd-resolved.service \
   "$rootfs/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
 ln -sf /usr/lib/systemd/system/avahi-daemon.service \
   "$rootfs/etc/systemd/system/multi-user.target.wants/avahi-daemon.service"
+# polkit authorizes non-root systemctl actions (see the obake rules drop-in).
+ln -sf /usr/lib/systemd/system/polkit.service \
+  "$rootfs/etc/systemd/system/multi-user.target.wants/polkit.service"
 
 [ -d "$here/files" ] && cp -a "$here/files/." "$rootfs/"
 
 # Files shipped from the repository keep the build user's ownership; sshd's
 # StrictModes requires the authorized-keys path to be root-owned.
 chown -R 0:0 "$rootfs/etc/ssh" 2>/dev/null || true
+# polkit only trusts rules owned by root.
+chown -R 0:0 "$rootfs/etc/polkit-1" 2>/dev/null || true

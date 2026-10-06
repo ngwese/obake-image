@@ -1,0 +1,17 @@
+// Allow the obake user full systemd unit management and power control over SSH
+// without interactive authentication. Over SSH a session is "remote", so
+// polkit's default active-local-session rule does not apply.
+polkit.addRule(function(action, subject) {
+    if (subject.user !== "obake") { return; }
+    var allowed = [
+        "org.freedesktop.systemd1.manage-units",
+        "org.freedesktop.systemd1.manage-unit-files",
+        "org.freedesktop.systemd1.reload-daemon",
+        "org.freedesktop.login1.power-off",
+        "org.freedesktop.login1.reboot",
+        "org.freedesktop.login1.manage"
+    ];
+    if (allowed.indexOf(action.id) !== -1) {
+        return polkit.Result.YES;
+    }
+});

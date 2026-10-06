@@ -82,6 +82,15 @@ writing to the read-only home. Verified behaviour:
 OpenSSH's per-source auth penalty (`PerSourcePenalties`) is disabled on these
 hosts, which are administered deliberately on trusted networks.
 
+### Privileged access
+
+A polkit rule (`/etc/polkit-1/rules.d/49-obake.rules`) grants the `obake` user
+full systemd unit management and power control over SSH without interactive
+authentication: `systemctl start|stop|restart|enable`, `systemctl poweroff`,
+and `systemctl reboot` work as `obake` with no password. The root filesystem
+stays read-only and root-owned, so this does not let the user write outside the
+directory contract.
+
 ## Verification
 
 - `verification/qemu/persist-test.sh` — writes markers under `/etc`, `/var`, and
