@@ -89,6 +89,16 @@ if ! ssh_run 'systemctl restart obake-launcher.service' >/dev/null 2>&1; then
   fail "obake could not manage a unit via polkit without authentication"
 fi
 
+log "checking diagnostics access as obake"
+if ! ssh_run 'dmesg >/dev/null 2>&1'; then
+  fail "obake could not read the kernel log via dmesg"
+fi
+# A non-member of systemd-journal only sees its own messages; require an entry
+# from a service the user does not own to prove full-journal access.
+if ! ssh_run 'journalctl -b -u ssh.service --no-pager -n 1 2>/dev/null | grep -q .'; then
+  fail "obake could not read the full system journal via journalctl"
+fi
+
 # Power control should also be granted; the guest then powers off and QEMU
 # exits (the run uses -no-reboot).
 log "checking polkit-granted poweroff as obake"
@@ -102,4 +112,4 @@ if kill -0 "$qemu_pid" 2>/dev/null; then
   fail "obake could not power off the host via polkit"
 fi
 trap - EXIT
-printf 'PASS: SSH access, directory contract, and polkit systemctl management\n'
+printf 'PASS: SSH access, directory contract, polkit systemctl, and diagnostics\n'

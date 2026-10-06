@@ -37,6 +37,9 @@ cat >"$rootfs/etc/sysctl.d/90-obake.conf" <<'EOF'
 # obake host tuning.
 vm.swappiness = 10
 fs.inotify.max_user_watches = 524288
+# Allow unprivileged reads of the kernel ring buffer (dmesg); the login user
+# relies on it for diagnostics.
+kernel.dmesg_restrict = 0
 EOF
 
 # Runtime mount contract. The root is mounted read-only by the kernel command

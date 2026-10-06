@@ -84,16 +84,27 @@ hosts, which are administered deliberately on trusted networks.
 
 ### Privileged access
 
-A polkit rule (`/etc/polkit-1/rules.d/49-obake.rules`) grants the `obake` user
-full systemd unit management and power control over SSH without interactive
-authentication: `systemctl start|stop|restart|enable`, `systemctl poweroff`,
-and `systemctl reboot` work as `obake` with no password. The root filesystem
-stays read-only and root-owned, so this does not let the user write outside the
-directory contract.
+Three narrowly scoped grants let `obake` administer the host over SSH; none
+widens the read-only root or the directory contract:
+
+- A polkit rule (`/etc/polkit-1/rules.d/49-obake.rules`) grants full systemd
+  unit management and power control over SSH without interactive
+  authentication: `systemctl start|stop|restart|enable`, `systemctl poweroff`,
+  and `systemctl reboot` work as `obake` with no password.
+- `kernel.dmesg_restrict = 0` (`/etc/sysctl.d/90-obake.conf`) allows reading the
+  kernel ring buffer with `dmesg`.
+- Membership in the `systemd-journal` group (declared in
+  `/usr/lib/sysusers.d/obake.conf`) gives `journalctl` read access to the full
+  system journal, not just `obake`'s own messages.
+
+The root filesystem stays read-only and root-owned, so none of these grants let
+the user write outside the directory contract. Only the systemd/power grant is
+polkit; the kernel-log grant is a sysctl and the journal grant is filesystem
+group access.
 
 ## Verification
 
 - `verification/qemu/persist-test.sh` — writes markers under `/etc`, `/var`, and
   `/home`, reboots, and switches slots, asserting the contract above.
 - `verification/qemu/ssh-test.sh` — logs in over SSH and checks the directory
-  contract.
+  contract, polkit systemd/power control, and `dmesg`/journal read access.
