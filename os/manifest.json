@@ -35,6 +35,7 @@
       "rauc",
       "dbus",
       "efibootmgr",
+      "systemd-resolved",
       "python3-minimal"
     ]
   },
@@ -60,7 +61,11 @@
         "sudo",
         "iproute2",
         "nftables",
-        "curl"
+        "curl",
+        "avahi-daemon",
+        "avahi-utils",
+        "libnss-mdns",
+        "git"
       ]
     },
     "runtime": {

@@ -140,6 +140,12 @@ ln -sf /usr/lib/systemd/system/systemd-networkd.service \
 ln -sf /usr/lib/systemd/system/systemd-networkd-wait-online.service \
   "$rootfs/etc/systemd/system/multi-user.target.wants/systemd-networkd-wait-online.service"
 
+# systemd-resolved provides DNS from DHCP; avahi provides mDNS (.local).
+ln -sf /usr/lib/systemd/system/systemd-resolved.service \
+  "$rootfs/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
+ln -sf /usr/lib/systemd/system/avahi-daemon.service \
+  "$rootfs/etc/systemd/system/multi-user.target.wants/avahi-daemon.service"
+
 [ -d "$here/files" ] && cp -a "$here/files/." "$rootfs/"
 
 # Files shipped from the repository keep the build user's ownership; sshd's

@@ -287,8 +287,8 @@ EOF
   cat >"$rootfs/etc/systemd/system/obake-verify.service" <<'EOF'
 [Unit]
 Description=obake guest functional checks
-After=multi-user.target
-Wants=multi-user.target
+After=multi-user.target network-online.target
+Wants=multi-user.target network-online.target
 
 [Service]
 Type=oneshot
@@ -321,6 +321,8 @@ normalize_rootfs() {
   # reproducible across builds.
   log "normalizing rootfs for reproducible output"
   rm -f "$rootfs/etc/resolv.conf"
+  # DNS is provided by systemd-resolved (DHCP); pin the standard stub symlink.
+  ln -sfn /run/systemd/resolve/stub-resolv.conf "$rootfs/etc/resolv.conf"
   # SSH host keys are machine-specific and seeded on the persist partition at
   # install time; the package-generated ones would make builds non-reproducible.
   rm -f "$rootfs"/etc/ssh/ssh_host_*

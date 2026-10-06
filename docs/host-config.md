@@ -56,6 +56,15 @@ holds the `/etc` overlay, the persisted `/var` subset, the RAUC slot state
 is never modified by an operating system update or by a reinstall that
 preserves user data.
 
+## Network and tooling
+
+- `systemd-networkd` runs DHCP on wired interfaces
+  (`/etc/systemd/network/20-obake-wired.network`).
+- `systemd-resolved` provides DNS; `/etc/resolv.conf` is the standard symlink
+  to `/run/systemd/resolve/stub-resolv.conf`, so names from DHCP resolve.
+- `avahi-daemon` (with `libnss-mdns`) provides mDNS/`.local` name resolution.
+- `git` is installed for inspecting and fetching configuration repositories.
+
 ## Directory contract
 
 `/etc/obake/directory-contract` names the locations a user may customize:

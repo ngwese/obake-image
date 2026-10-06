@@ -50,6 +50,20 @@ check_singularity() {
 	[ "$(singularity --version 2>/dev/null)" = "singularity-ce version $stamp" ]
 }
 
+# DNS must resolve names (systemd-resolved over DHCP).
+check_dns() {
+	getent hosts deb.debian.org >/dev/null 2>&1
+}
+
+# avahi (mDNS) and git must be installed and running.
+check_avahi() {
+	systemctl is-active --quiet avahi-daemon
+}
+
+check_git() {
+	command -v git >/dev/null 2>&1
+}
+
 # The pinned PREEMPT_RT kernel must be running.
 check_realtime_kernel() {
 	uname -r | grep -q -- '-rt-'
@@ -117,6 +131,9 @@ run var-contract check_var_contract
 run user-partition check_user_partition
 run singularity check_singularity
 run realtime-kernel check_realtime_kernel
+run dns check_dns
+run avahi check_avahi
+run git check_git
 run rauc-status check_rauc_status
 run update-gated check_update_gated
 run update-status check_update_status
