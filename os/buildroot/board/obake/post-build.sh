@@ -52,5 +52,29 @@ mkdir -p "${target_dir}/etc/obake"
 } >"${target_dir}/etc/obake/kernel"
 printf '%s\n' "$image_version" >"${target_dir}/etc/obake/image-version"
 
+# Optional SSH public key for the obake user, provisioned into the image.
+if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
+	install -d "${target_dir}/etc/ssh/authorized_keys.d"
+	install -m 0644 "$OBKA_SSH_AUTHORIZED_KEY" \
+		"${target_dir}/etc/ssh/authorized_keys.d/obake"
+fi
+
+# OpenSSH's packaged sshd_config does not include the drop-in directory, so the
+# obake settings under /etc/ssh/sshd_config.d would be ignored. Add the include
+# at the top (first-obtained value wins), as distributions do.
+sshd_config="${target_dir}/etc/ssh/sshd_config"
+if [ -f "$sshd_config" ] &&
+	! grep -q '^Include /etc/ssh/sshd_config.d/' "$sshd_config"; then
+	sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' "$sshd_config"
+fi
+
+# Files copied from the rootfs overlay keep the build user's ownership; polkit
+# and sshd's StrictModes require root-owned configuration.
+for p in etc/hosts etc/hostname etc/polkit-1 etc/ssh etc/systemd etc/udev \
+	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d; do
+	[ -e "${target_dir}/$p" ] || continue
+	chown -R 0:0 "${target_dir}/$p"
+done
+
 printf '[post-build] kernel=%s arch=%s image-version=%s\n' \
 	"$kver" "$arch" "$image_version"

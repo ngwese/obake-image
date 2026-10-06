@@ -24,6 +24,26 @@ Buildroot cross-compiles for the target and never executes target binaries, so
 any Linux host architecture can build any target image; no emulation or binfmt
 handler is required.
 
+### Userland
+
+The base runs systemd. The guaranteed tool set is `bash`, `grep`, `git`, `vi`,
+`sudo`, `ip`, `systemctl`, `journalctl`, `dmesg`, plus `openssh` and `avahi`.
+The `obake` login user is created from `board/obake/users.txt` (password unset,
+so access is by SSH key only), and the ported host configuration lives in
+`board/obake/rootfs-overlay/`.
+
+Two Buildroot options are easy to miss:
+
+- `BR2_PACKAGE_SYSTEMD_POLKIT=y` makes systemd consult polkit; without it a
+  non-root user is denied unit management even with a matching polkit rule.
+  Selecting it also pulls in `BR2_PACKAGE_POLKIT`.
+- `BR2_TARGET_ROOTFS_EXT2_SIZE` must be large enough for the systemd image
+  (set to `1G` here).
+
+Because the overlay is copied with the build user's ownership, `post-build.sh`
+root-owns the ported configuration (polkit and sshd require it) and adds the
+`Include /etc/ssh/sshd_config.d/*.conf` line the packaged `sshd_config` lacks.
+
 ### Pins
 
 `buildroot/pins.json` is the single source of truth for the base:

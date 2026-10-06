@@ -45,8 +45,9 @@ printf '%s  %s\n' "$br_sha" "$src_tar" | sha256sum -c -
 printf '%s  %s\n' "$ksha" "$dl/linux-$kver.tar.xz" | sha256sum -c -
 
 mkdir -p "$here/vendor/dl"
-cp -a "$src_tar" "$here/vendor/"
-rsync -a --delete --exclude='.lock' "$dl/" "$here/vendor/dl/"
+cp -f "$src_tar" "$here/vendor/"
+rsync -rltD --no-owner --no-group --delete --exclude='.lock' \
+	"$dl/" "$here/vendor/dl/"
 
 printf '[vendor] vendored Buildroot %s and the download cache into %s\n' \
 	"$br_release" "$here/vendor"

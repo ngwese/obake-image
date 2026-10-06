@@ -1,0 +1,5 @@
+config BR2_PACKAGE_OBAKE_HOST_CONFIG
+	bool "obake host config"
+	help
+	  Install the obake host-level udev rules and JACK profiles kept under
+	  image/host into the target root filesystem.

@@ -1,5 +1,5 @@
 menu "obake host configuration"
 
-# Board and package options are introduced by later changes in this change.
+source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-host-config/Config.in"
 
 endmenu

@@ -1,0 +1,3 @@
+# obake login user. Home lives on the user partition (/home) and is part of the
+# writable directory contract. Password is unset, so access is by SSH key only.
+obake -1 obake -1 * /home/obake /bin/bash audio,dialout,systemd-journal obake user
