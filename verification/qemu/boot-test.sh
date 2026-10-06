@@ -2,6 +2,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$here/qemu-env.sh"
 
 disk="${1:?usage: boot-test.sh <disk-image> [marker]}"
 marker="${2:-${BOOT_MARKER:-login:}}"
@@ -20,12 +21,15 @@ cp "$ovmf_vars" "$vars"
 trap 'rm -f "$vars"' EXIT
 
 set +e
+printf '[boot-test] accel=%s cpu=%s smp=%s\n' \
+  "$OBKA_QEMU_ACCEL_NAME" "$OBKA_QEMU_CPU" "$OBKA_QEMU_SMP" >&2
 timeout "$timeout_s" qemu-system-x86_64 \
-  -machine q35 -m 2048 -smp 2 -no-reboot \
+  -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
+  -m 2048 -smp "$OBKA_QEMU_SMP" -no-reboot \
   -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
   -drive if=pflash,format=raw,file="$vars" \
-  -drive file="$disk",format=raw,if=virtio \
-  -nographic -serial mon:stdio >"$log" 2>&1
+  -drive file="$disk",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
+  -nographic >"$log" 2>&1
 status=$?
 set -e
 
