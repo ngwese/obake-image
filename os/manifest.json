@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "note": "Pinned inputs for the layered obake OS image build. This manifest is the single source of truth for the base suite, the packages each layer adds, the kernel flavor, and the runtime source. Rebasing on a newer Debian release means bumping the base pin and rebuilding; higher layers are untouched.",
+  "base": {
+    "suite": "trixie",
+    "mirror": "http://deb.debian.org/debian",
+    "securityMirror": "http://deb.debian.org/debian-security",
+    "securitySuite": "trixie-security",
+    "keyring": "/usr/share/keyrings/debian-archive-keyring.gpg",
+    "variant": "minbase",
+    "packages": [
+      "systemd",
+      "systemd-sysv",
+      "initramfs-tools",
+      "ca-certificates",
+      "e2fsprogs",
+      "dosfstools",
+      "parted",
+      "gdisk",
+      "kmod",
+      "util-linux",
+      "less",
+      "openssh-server",
+      "openssh-client",
+      "libseccomp2",
+      "libssl3t64",
+      "libgpgme11t64",
+      "libfuse3-4",
+      "fuse3",
+      "fuse2fs",
+      "squashfs-tools",
+      "squashfs-tools-ng",
+      "cryptsetup",
+      "uidmap",
+      "rauc",
+      "dbus",
+      "efibootmgr",
+      "python3-minimal"
+    ]
+  },
+  "kernel": {
+    "flavor": "rt",
+    "note": "Stock Debian PREEMPT_RT kernel. Task 1.5 originally called for a fully custom kernel build; that is deferred to follow-up task 9.1.",
+    "meta": {
+      "amd64": "linux-image-rt-amd64",
+      "arm64": "linux-image-rt-arm64"
+    },
+    "metaVersion": "6.12.111-1",
+    "image": {
+      "amd64": "6.12.111+deb13-rt-amd64",
+      "arm64": "6.12.111+deb13-rt-arm64"
+    }
+  },
+  "layers": {
+    "tuning": {
+      "packages": [
+        "rtkit",
+        "alsa-utils",
+        "usb-modeswitch",
+        "sudo",
+        "iproute2",
+        "nftables",
+        "curl"
+      ]
+    },
+    "runtime": {
+      "packages": []
+    }
+  },
+  "boards": {
+    "generic": {
+      "packages": []
+    },
+    "rk35xx": {
+      "packages": []
+    }
+  },
+  "singularity": {
+    "version": "4.6.0",
+    "url": "https://github.com/sylabs/singularity/releases/download/v4.6.0/singularity-ce-4.6.0.tar.gz",
+    "sha256": "920f3e8b3b103b54e9f303c80989ddd6bdac2e1339eab952505cd3fda14b2315",
+    "installPrefix": "/usr/local",
+    "stagedRoot": "/opt/singularity-root"
+  }
+}

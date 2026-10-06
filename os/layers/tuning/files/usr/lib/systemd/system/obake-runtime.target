@@ -1,0 +1,8 @@
+[Unit]
+Description=obake runtime (shapes and audio services)
+Documentation=file:/etc/obake/directory-contract
+Wants=obake-launcher.service
+After=obake-launcher.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+# Extra kernel modules for the obake initramfs. overlayfs backs the persistent
+# /etc overlay configured by scripts/local-bottom/obake-etc-overlay.
+overlay
+ext4
+virtio_blk
+virtio_pci

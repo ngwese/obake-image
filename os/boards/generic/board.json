@@ -1,0 +1,5 @@
+{
+  "name": "generic",
+  "description": "Default tuning for x86_64 development and QEMU verification hosts.",
+  "packages": []
+}

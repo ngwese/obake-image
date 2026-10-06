@@ -1,0 +1,54 @@
+#!/bin/sh
+# obake launcher.
+#
+# Ultimately responsible for starting the configured shapes and for restoring
+# the previous shape configuration after a failed update. For now it provides a
+# mock: it owns the shape configuration surface on the persist partition and
+# mocks positive/negative health checks so the health gate can be exercised.
+set -u
+
+shapes_dir="/persist/shapes"
+snap_root="/persist/obake/snapshots"
+conf="/etc/obake/health.conf"
+[ -r "$conf" ] && . "$conf"
+: "${mock_health:=pass}"
+
+usage() {
+	echo "usage: obake-launcher {start|stop|health|snapshot <id>|restore [id]}" >&2
+	exit 2
+}
+
+case "${1:-}" in
+start)
+	mkdir -p "$shapes_dir"
+	[ -f "$shapes_dir/shapes.list" ] || printf '# obake shapes\n' >"$shapes_dir/shapes.list"
+	mkdir -p /run/obake
+	printf 'launcher started\n' >/run/obake/launcher
+	;;
+stop)
+	printf 'launcher stopped\n' >/run/obake/launcher 2>/dev/null || true
+	;;
+health)
+	# Mock health check; the real one will confirm shapes and the audio path
+	# are running. Negative health is selectable for testing.
+	[ "$mock_health" = "pass" ]
+	;;
+snapshot)
+	id="${2:?snapshot id}"
+	mkdir -p "$snap_root/$id"
+	[ -d "$shapes_dir" ] && cp -a "$shapes_dir/." "$snap_root/$id/"
+	printf '%s\n' "$id" >"$snap_root/latest"
+	;;
+restore)
+	id="${2:-$(cat "$snap_root/latest" 2>/dev/null || true)}"
+	[ -n "$id" ] && [ -d "$snap_root/$id" ] || exit 0
+	mkdir -p "$shapes_dir"
+	rm -rf "${shapes_dir:?}"/*
+	cp -a "$snap_root/$id/." "$shapes_dir/"
+	mkdir -p /persist/obake
+	printf 'restored %s\n' "$id" >/persist/obake/restored
+	;;
+*)
+	usage
+	;;
+esac

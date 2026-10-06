@@ -1,0 +1,5 @@
+{
+  "name": "rk35xx",
+  "description": "Tuning for FriendlyElec RK35xx boards booting via U-Boot EFI.",
+  "packages": []
+}

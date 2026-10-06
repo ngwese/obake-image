@@ -1,0 +1,88 @@
+#!/bin/sh
+# Mount the persist partition and overlay the slot's read-only /etc with it, so
+# /etc changes survive reboots and slot switches. Runs after the root filesystem
+# is mounted and before switch_root. If persist is unavailable the system boots
+# with the read-only /etc instead of failing.
+
+PREREQ=""
+
+prereqs() {
+	echo "$PREREQ"
+}
+
+case "$1" in
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+. /scripts/functions
+
+rootmnt="${rootmnt:-/root}"
+persist_label="OBKA_PERSIST"
+persist_mnt="$rootmnt/persist"
+
+# Only act when the image declares an /etc overlay.
+if [ ! -e "$rootmnt/etc/obake/etc-overlay" ]; then
+	exit 0
+fi
+
+# The initramfs may not have populated block device nodes or by-label links for
+# non-root partitions. Trigger udev and resolve the persist device by label.
+if command -v udevadm >/dev/null 2>&1; then
+	udevadm trigger --action=add 2>/dev/null || true
+	udevadm settle --timeout=10 2>/dev/null || true
+fi
+
+persist_dev=""
+tries=0
+while [ -z "$persist_dev" ] && [ "$tries" -lt 50 ]; do
+	persist_dev="$(blkid -L "$persist_label" 2>/dev/null || true)"
+	[ -n "$persist_dev" ] && break
+	if command -v udevadm >/dev/null 2>&1; then
+		udevadm settle --timeout=1 2>/dev/null || true
+	fi
+	tries=$((tries + 1))
+done
+
+# Create the device node if udev did not. blkid finds the partition through
+# sysfs even when /dev lacks the node.
+if [ -n "$persist_dev" ] && [ ! -b "$persist_dev" ]; then
+	name="${persist_dev#/dev/}"
+	if [ -r "/sys/class/block/$name/dev" ]; then
+		IFS=: read -r major minor <"/sys/class/block/$name/dev"
+		mknod "$persist_dev" b "$major" "$minor" 2>/dev/null || true
+	fi
+fi
+
+mkdir -p "$persist_mnt"
+if [ -z "$persist_dev" ] || [ ! -b "$persist_dev" ]; then
+	log_warning_msg "obake: persist device unresolved (${persist_dev:-none})"
+	exit 0
+fi
+if ! mount_err="$(mount -t ext4 "$persist_dev" "$persist_mnt" 2>&1)"; then
+	log_warning_msg "obake: cannot mount persist dev=[$persist_dev] mnt=[$persist_mnt]: $mount_err"
+	exit 0
+fi
+
+upper="$persist_mnt/etc-overlay/upper"
+work="$persist_mnt/etc-overlay/work"
+mkdir -p "$upper" "$work"
+
+# Load overlayfs; it is present in the initramfs but module autoload is not
+# triggered by the klibc mount helper.
+modprobe overlay 2>/dev/null || true
+
+# klibc mount stops option parsing at the first operand, so options must come
+# before the (unused) overlay device argument.
+if ! overlay_err="$(mount -t overlay \
+	-o "lowerdir=$rootmnt/etc,upperdir=$upper,workdir=$work" \
+	overlay "$rootmnt/etc" 2>&1)"; then
+	log_warning_msg "obake: could not mount /etc overlay: $overlay_err"
+	exit 0
+fi
+log_begin_msg "obake: mounted persistent /etc overlay"
+log_end_msg
+
+exit 0

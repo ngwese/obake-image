@@ -1,0 +1,15 @@
+[Unit]
+Description=obake persisted /var subset
+Documentation=file:/etc/obake/directory-contract
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target
+ConditionPathIsDirectory=/persist
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/obake/persist-var
+
+[Install]
+WantedBy=sysinit.target

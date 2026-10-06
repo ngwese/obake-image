@@ -1,0 +1,15 @@
+[Unit]
+Description=Ensure obake EFI boot entries
+Documentation=file:/etc/obake/directory-contract
+DefaultDependencies=no
+After=local-fs.target
+Before=rauc.service multi-user.target
+ConditionPathExists=/sys/firmware/efi
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/obake/efi-entries.sh
+
+[Install]
+WantedBy=multi-user.target

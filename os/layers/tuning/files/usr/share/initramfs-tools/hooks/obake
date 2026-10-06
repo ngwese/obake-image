@@ -1,0 +1,22 @@
+#!/bin/sh
+# Ensure the tools the obake /etc overlay hook needs are present in the
+# initramfs: udevadm to settle partition probing and blkid for label lookups.
+PREREQ=""
+
+prereqs() {
+	echo "$PREREQ"
+}
+
+case "$1" in
+prereqs)
+	prereqs
+	exit 0
+	;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+copy_exec /usr/bin/udevadm /usr/bin
+copy_exec /usr/sbin/blkid /sbin
+
+exit 0

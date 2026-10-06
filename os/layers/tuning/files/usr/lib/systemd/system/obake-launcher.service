@@ -1,0 +1,15 @@
+[Unit]
+Description=obake launcher (shape configuration)
+Documentation=file:/etc/obake/directory-contract
+PartOf=obake-runtime.target
+Before=obake-runtime.target
+After=local-fs.target obake-persist-var.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/obake/obake-launcher start
+ExecStop=/usr/libexec/obake/obake-launcher stop
+
+[Install]
+WantedBy=obake-runtime.target
