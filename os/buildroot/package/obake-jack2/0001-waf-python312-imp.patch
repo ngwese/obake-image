@@ -1,0 +1,23 @@
+Fix the bundled waf 2.0.12 for Python 3.12+, where the removed imp module is
+used to create the wscript module.
+
+--- a/waflib/Context.py
++++ b/waflib/Context.py
+@@ -6,7 +6,7 @@
+ Classes and functions enabling the command system
+ """
+ 
+-import os, re, imp, sys
++import os, re, sys, types
+ from waflib import Utils, Errors, Logs
+ import waflib.Node
+ 
+@@ -660,7 +660,7 @@
+ 	except KeyError:
+ 		pass
+ 
+-	module = imp.new_module(WSCRIPT_FILE)
++	module = types.ModuleType(WSCRIPT_FILE)
+ 	try:
+ 		code = Utils.readf(path, m='r', encoding=encoding)
+ 	except EnvironmentError:

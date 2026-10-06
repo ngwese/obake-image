@@ -35,11 +35,18 @@ SSH key only), and the ported host configuration lives in
 The packages the shapes build and run on form a separate **runtime layer**, a
 `BR2_EXTERNAL` meta-package `obake-runtime` (`package/obake-runtime/Config.in`)
 whose `select`s name the layer once so a defconfig reuses it. It currently
-selects `jack2` (jackd), `alsa-utils`, `usb-modeswitch`, `nftables`, `avahi`
+selects `obake-jack2`, `alsa-utils`, `usb-modeswitch`, `nftables`, `avahi`
 (+ daemon), `nss-mdns`, `libcurl` (+ the `curl` binary), `iproute2`, `sudo`, and
 `git`, and will select the Singularity runtime. Enable it with
-`BR2_PACKAGE_OBAKE_RUNTIME=y`; `jack2` additionally needs
+`BR2_PACKAGE_OBAKE_RUNTIME=y`; `obake-jack2` additionally needs
 `BR2_TOOLCHAIN_BUILDROOT_CXX=y` for target C++/libstdc++.
+
+`obake-jack2` (`package/obake-jack2/`) is an external recipe that builds jack2
+with `--alsa --classic --dbus`, installing both `jackd` and `jackdbus`. It
+removes the Python `jack_control` helper and selects no Python interpreter or
+bindings, so the host carries no Python runtime; drive `jackdbus` over its
+D-Bus interface. Use it instead of the in-tree `BR2_PACKAGE_JACK2_DBUS`, which
+selects Python solely for `jack_control`.
 
 `rtkit` is not included: Buildroot has no `rtkit` package, and realtime
 scheduling and locked memory are provided by the `limits.d` grants and the
