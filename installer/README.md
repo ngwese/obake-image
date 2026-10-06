@@ -19,6 +19,13 @@ Partition devices are resolved relative to the selected target disk, not by
 global labels, so an installer medium that itself carries `OBKA_*` partitions
 cannot be confused with the target.
 
+## SSH access
+
+Set `OBKA_SSH_AUTHORIZED_KEY` to a public key file when building or installing
+to seed it for the `obake` user on the persist partition; the installed host is
+then reachable over SSH. For a hands-on QEMU/KVM walkthrough (set up a VM,
+install, and log in), see `../docs/dev-qemu.md`.
+
 ## Reinstall preserving user data
 
 Re-running the installer against a disk that already has the stable layout
@@ -62,3 +69,4 @@ Overrides:
 | `ACTIVE_SLOT`   | `a`                           | slot to boot by default       |
 | `PRESERVE_USER` | `1`                           | keep an existing user partition |
 | `LAYOUT`        | `<repo>/os/partition-layout.json` | layout metadata           |
+| `OBKA_SSH_AUTHORIZED_KEY` | unset               | public key seeded for the `obake` user |

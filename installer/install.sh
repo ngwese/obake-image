@@ -165,6 +165,13 @@ EOF
     ssh-keygen -q -t ed25519 -N '' -f "$persist/etc/ssh/ssh_host_ed25519_key"
     ssh-keygen -q -t rsa -b 3072 -N '' -f "$persist/etc/ssh/ssh_host_rsa_key"
   fi
+  # Seed an SSH authorized key for the obake user on the persist partition, so
+  # the installed host is reachable regardless of slot/update.
+  if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
+    install -d "$persist/etc/ssh/authorized_keys.d"
+    install -m 0644 "$OBKA_SSH_AUTHORIZED_KEY" \
+      "$persist/etc/ssh/authorized_keys.d/obake"
+  fi
 }
 
 install_boot() {

@@ -37,6 +37,14 @@ done
 install -m 0755 "$project_root/installer/install.sh" "$stage/opt/obake/install.sh"
 install -D -m 0644 "$os_dir/partition-layout.json" "$stage/opt/os/partition-layout.json"
 
+# Optionally carry an SSH authorized key so the installer seeds it into the
+# installed host's persist partition.
+ssh_key="${OBKA_SSH_AUTHORIZED_KEY:-}"
+if [ -n "$ssh_key" ] && [ -f "$ssh_key" ]; then
+  install -d "$stage/opt/obake"
+  install -m 0644 "$ssh_key" "$stage/opt/obake/authorized_key.pub"
+fi
+
 target_disk="${INSTALLER_TARGET_DISK:-/dev/vdb}"
 preserve_user="${INSTALLER_PRESERVE_USER:-1}"
 
@@ -56,6 +64,9 @@ EOF
 Environment=IMAGES_DIR=/opt/obake/images
 Environment=PRESERVE_USER=$preserve_user
 EOF
+  if [ -n "$ssh_key" ] && [ -f "$ssh_key" ]; then
+    printf 'Environment=OBKA_SSH_AUTHORIZED_KEY=/opt/obake/authorized_key.pub\n'
+  fi
   cat <<'EOF'
 ExecStart=/bin/sh -c '/opt/obake/install.sh < /dev/ttyS0; rc=$?; echo "OBKA_INSTALL_EXIT=$rc"; sync; /usr/bin/systemctl poweroff -f'
 StandardOutput=tty
