@@ -14,8 +14,8 @@ directory until it is retired; it is documented at the end of this file.
 |-----------------------------|--------------------------------------------------|
 | `buildroot/external.desc`   | `BR2_EXTERNAL` tree identity                      |
 | `buildroot/Config.in`       | external tree menu                                |
-| `buildroot/configs/`        | board defconfigs (`obake_aarch64`, `obake_x86_64`)|
-| `buildroot/board/obake/`    | kernel configs, realtime fragment, build hooks    |
+| `buildroot/configs/`        | shared base + per-board fragments (`obake_base`, `obake-<board>`) |
+| `buildroot/board/obake/`    | kernel configs, fragments, per-board overlays, build hooks |
 | `buildroot/package/`        | in-tree packages (added by later changes)         |
 | `buildroot/pins.json`       | pinned Buildroot release and kernel source        |
 | `buildroot/build.sh`        | verified build wrapper                            |
@@ -23,6 +23,33 @@ directory until it is retired; it is documented at the end of this file.
 Buildroot cross-compiles for the target and never executes target binaries, so
 any Linux host architecture can build any target image; no emulation or binfmt
 handler is required.
+
+### Boards
+
+Every board is built from one shared base and differs only in its board
+fragment and overlay, so adding or changing a board cannot fork the base. There
+are three boards:
+
+| Board             | Arch    | Base kernel config          | Purpose                    |
+|-------------------|---------|-----------------------------|----------------------------|
+| `generic-aarch64` | aarch64 | `generic-aarch64/linux.config` | QEMU `virt` proxy for arm64 |
+| `generic-x86_64`  | x86_64  | `generic-x86_64/linux.config`  | development and CI hosts   |
+| `rk35xx`          | aarch64 | arm64 default config        | FriendlyElec RK3588 (NanoPC-T6) |
+
+`build.sh` forms each board's defconfig as `configs/obake_base.config` followed
+by `configs/obake-<board>.config`; the base holds the userland, systemd setup,
+RAUC/obake packages, kernel version, fragments, and rootfs image settings, while
+the board fragment holds only its arch, kernel config selection, board overlay,
+and (for rk35xx) its bootloader. `buildroot/check-boards.sh` enforces that no
+board fragment overrides a base symbol and prints how two boards differ.
+
+`rk35xx` boots a Rockchip DDR + TF-A chain: the Rockchip DDR TPL (`rkbin`), TF-A
+`bl31`, and mainline U-Boot (`nanopc-t6-rk3588_defconfig`, `u-boot-rockchip.bin`)
+are written to the raw region before the first partition (the disk reserves the
+first 16 MiB for it, `DISK_ALIGN_MIB=16`). U-Boot's EFI then loads the per-slot
+UKI from the ESP with `console=ttyS2`. Only the build and the raw boot region
+are verified here; the on-hardware boot path (DDR, peripheral, DTB bring-up) is
+a hardware smoke test (see `design.md`).
 
 ### Userland
 
@@ -101,28 +128,34 @@ is transport only. Set `DL_DIR` to a populated directory to build offline.
 
 ### Kernel
 
-The realtime kernel is built from the pinned source with the board's base
-config plus `board/obake/linux-realtime.fragment`. PREEMPT_RT has been part of
-mainline since 6.12, so the fragment enables `CONFIG_PREEMPT_RT` and a 1000 Hz
-tick without any out-of-tree patchset. `post-build.sh` records the built kernel
-version under `/etc/obake/kernel` and refuses to produce an image whose kernel
-is not realtime.
+The realtime kernel is built from the pinned source with the board's kernel
+config plus two shared fragments: `board/obake/linux-realtime.fragment`
+(PREEMPT_RT has been in mainline since 6.12, so it enables `CONFIG_PREEMPT_RT`
+and a 1000 Hz tick with no out-of-tree patchset) and
+`board/obake/linux-obake.fragment` (the loop/SquashFS/initrd/FAT/dm-verity and
+writable-contract options the host needs). The generic boards use a full custom
+config; `rk35xx` builds from the arm64 default config, which carries the
+Rockchip SoC drivers. `post-build.sh` records the built kernel version under
+`/etc/obake/kernel` and refuses to produce an image whose kernel is not
+realtime.
 
 ### Building
 
 Run on a Linux host or inside a Linux container:
 
 ```
-image/os/buildroot/build.sh obake_aarch64_defconfig
-image/os/buildroot/build.sh obake_x86_64_defconfig
+image/os/buildroot/build.sh generic-aarch64
+image/os/buildroot/build.sh generic-x86_64
+image/os/buildroot/build.sh rk35xx
 ```
 
-The wrapper downloads and verifies the pinned Buildroot release, seeds the
-verified kernel tarball into Buildroot's download cache, then runs the build.
-Extra arguments are passed to the final `make`, for example:
+The wrapper composes the shared base with the board fragment, downloads and
+verifies the pinned Buildroot release, seeds the verified kernel tarball into
+Buildroot's download cache, then runs the build. Extra arguments are passed to
+the final `make`, for example:
 
 ```
-image/os/buildroot/build.sh obake_aarch64_defconfig -j"$(nproc)"
+image/os/buildroot/build.sh generic-aarch64 -j"$(nproc)"
 ```
 
 Environment overrides:
@@ -135,7 +168,7 @@ Environment overrides:
 
 ### Outputs
 
-Images are emitted under `$OBAKE_WORK/output/<defconfig>/images/`:
+Images are emitted under `$OBAKE_WORK/output/<board>/images/`:
 
 - `Image` / `bzImage`, device trees, and the rootfs `rootfs.ext4` and
   `rootfs.tar`;

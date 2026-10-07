@@ -25,6 +25,18 @@ case "$(grep -E '^BR2_(aarch64|x86_64)=y' "$BR2_CONFIG")" in
 *) log "error: unsupported architecture"; exit 1 ;;
 esac
 
+# The board selects the console and, for Rockchip, the raw bootloader region.
+board="${OBAKE_BOARD:-}"
+if [ -z "$board" ]; then
+	if grep -q '^BR2_TARGET_UBOOT_NEEDS_ROCKCHIP_RKBIN=y' "$BR2_CONFIG"; then
+		board=rk35xx
+	else
+		board="generic-$arch"
+	fi
+fi
+[ "$board" = "rk35xx" ] && cons=ttyS2
+log "board=$board arch=$arch console=$cons"
+
 stub="$TARGET_DIR/usr/lib/systemd/boot/efi/linux$efiarch.efi.stub"
 if [ ! -f "$stub" ]; then
 	# x86_64 builds the stub in-tree (BR2_PACKAGE_SYSTEMD_BOOT); aarch64 uses
@@ -98,8 +110,19 @@ if [ "${MAKE_DISK:-1}" = "1" ]; then
 	# One bootable disk; both root slots and their UKIs are on it, so a single
 	# image covers the active and inactive slots.
 	slot="${DISK_SLOT:-a}"
+	raw_bootloader=""
+	disk_align="${DISK_ALIGN_MIB:-1}"
+	if [ "$board" = "rk35xx" ]; then
+		raw_bootloader="$binaries/u-boot-rockchip.bin"
+		[ -f "$raw_bootloader" ] ||
+			{ log "error: rk35xx bootloader u-boot-rockchip.bin not found"; exit 1; }
+		# The Rockchip boot chain (DDR TPL + TF-A BL31 + U-Boot) lives in a raw
+		# region before the first partition, so reserve the first 16 MiB.
+		disk_align="${DISK_ALIGN_MIB:-16}"
+	fi
 	log "assembling disk-$slot.img"
 	WORK="$binaries/.disk-work" USER_SIZE_MIB="${USER_SIZE_MIB:-2048}" \
+		DISK_ALIGN_MIB="$disk_align" RAW_BOOTLOADER="$raw_bootloader" \
 		bash "$scripts/make-disk.sh" "$slot" "$mkarch" "$binaries"
 fi
 

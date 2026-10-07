@@ -1,0 +1,43 @@
+# Host requirements every obake board needs on top of its base kernel config.
+#
+# The generic boards use a full custom config that already sets these; the
+# rk35xx board builds from the architecture default config and relies on this
+# fragment to guarantee the writable contract, the Singularity runtime, the
+# EFI/vfat ESP, and RAUC's dm-verity bundles all have their kernel support.
+CONFIG_MODULES=y
+CONFIG_MODULE_UNLOAD=y
+CONFIG_BINFMT_MISC=y
+
+# Loop devices and SquashFS, needed by the Singularity runtime for SIF images.
+CONFIG_BLK_DEV_LOOP=y
+CONFIG_SQUASHFS=y
+CONFIG_SQUASHFS_ZLIB=y
+CONFIG_SQUASHFS_LZ4=y
+CONFIG_SQUASHFS_LZO=y
+CONFIG_SQUASHFS_XZ=y
+CONFIG_SQUASHFS_ZSTD=y
+
+# Initramfs support, required to run the obake /etc-overlay init.
+CONFIG_BLK_DEV_INITRD=y
+
+# FAT/VFAT for the EFI system partition.
+CONFIG_FAT_FS=y
+CONFIG_MSDOS_FS=y
+CONFIG_VFAT_FS=y
+CONFIG_NLS_CODEPAGE_437=y
+CONFIG_NLS_ISO8859_1=y
+
+# Device-mapper verity, required to mount RAUC verity-format bundles.
+CONFIG_MD=y
+CONFIG_BLK_DEV_DM=y
+CONFIG_DM_BUFIO=y
+CONFIG_DM_VERITY=y
+CONFIG_CRYPTO_SHA256=y
+
+# Writable contract: the /etc overlay, the /var tmpfs, and FUSE.
+CONFIG_OVERLAY_FS=y
+CONFIG_TMPFS=y
+CONFIG_TMPFS_POSIX_ACL=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_EXT4_FS=y
+CONFIG_FUSE_FS=y

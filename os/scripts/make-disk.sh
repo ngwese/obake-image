@@ -50,7 +50,10 @@ rm -f "$disk"
 truncate -s "${total_mib}M" "$disk"
 
 sgdisk_args=(--zap-all)
-start=2048 # 1 MiB alignment
+# The first partition is aligned past any board raw boot region (Rockchip
+# reserves the space before the first partition for the DDR/TPL/BL31 chain).
+align_mib="${DISK_ALIGN_MIB:-1}"
+start=$(( align_mib * 2048 ))
 declare -A part_start part_end part_size
 for line in "${parts[@]}"; do
   read -r order role label guid size grow <<<"$line"
@@ -70,6 +73,18 @@ for line in "${parts[@]}"; do
   fi
 done
 sgdisk "${sgdisk_args[@]}" "$disk" >/dev/null
+
+# Board raw boot region (e.g. Rockchip u-boot-rockchip.bin: DDR TPL + TF-A BL31
+# + U-Boot), written at 32 KiB, before the first partition.
+if [ -n "${RAW_BOOTLOADER:-}" ]; then
+  [ -f "$RAW_BOOTLOADER" ] || die "raw bootloader not found: $RAW_BOOTLOADER"
+  size_bytes=$(wc -c <"$RAW_BOOTLOADER")
+  region_bytes=$(( start * sector - 64 * sector ))
+  [ "$size_bytes" -le "$region_bytes" ] ||
+    die "raw bootloader ($size_bytes bytes) does not fit before first partition ($region_bytes bytes)"
+  dd if="$RAW_BOOTLOADER" of="$disk" bs="$sector" seek=64 conv=notrunc status=none
+  log "wrote ${RAW_BOOTLOADER##*/} -> sector 64 (${align_mib}MiB boot region)"
+fi
 
 dd_at() { # dd_at <image> <role>
   local image="$1" role="$2" off

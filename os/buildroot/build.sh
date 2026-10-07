@@ -2,9 +2,15 @@
 #
 # Build an obake host image from a pinned Buildroot release.
 #
-#   build.sh <defconfig> [make-args...]
+#   build.sh <board> [make-args...]
 #
-# e.g. build.sh obake_aarch64_defconfig
+# e.g. build.sh generic-aarch64
+#
+# <board> is one of generic-aarch64, generic-x86_64, or rk35xx. Every board is
+# built from the same shared base (configs/obake_base.config) combined with the
+# board fragment (configs/obake-<board>.config), so the base userland, kernel,
+# and runtime are identical on every board and a board only adds its own
+# arch, kernel config, and overlay.
 #
 # The Buildroot release and the realtime kernel source, with their SHA-256
 # hashes, are read from pins.json and verified before the build starts, so an
@@ -20,11 +26,19 @@ pins="$here/pins.json"
 vendor="$here/vendor"
 
 if [ $# -lt 1 ]; then
-	printf 'usage: %s <defconfig> [make-args...]\n' "$0" >&2
+	printf 'usage: %s <board> [make-args...]\n' "$0" >&2
+	printf 'boards: generic-aarch64 generic-x86_64 rk35xx\n' >&2
 	exit 2
 fi
-defconfig="$1"
+board="$1"
 shift
+
+board_config="$here/configs/obake-$board.config"
+if [ ! -f "$board_config" ]; then
+	printf '[build] error: unknown board %s (%s)\n' "$board" "$board_config" >&2
+	exit 2
+fi
+base_config="$here/configs/obake_base.config"
 
 pin() { # pin <jq-ish-path>
 	python3 - "$pins" "$1" <<'PY'
@@ -53,7 +67,7 @@ else
 	dl="$work/dl"
 fi
 src="$work/buildroot-$br_release"
-out="${OBAKE_OUT:-$work/output/$defconfig}"
+out="${OBAKE_OUT:-$work/output/$board}"
 
 verify() { # verify <file> <sha256>
 	printf '%s  %s\n' "$2" "$1" | sha256sum -c - >/dev/null 2>&1
@@ -89,5 +103,15 @@ fi
 # Seed the kernel tarball into Buildroot's download cache after verifying it.
 fetch "$kurl" "$dl/linux-$kver.tar.xz" "$ksha"
 
-make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" "$defconfig"
+# Compose the shared base with the board fragment into the defconfig Buildroot
+# configures from. Board lines come last so they can override the base.
+mkdir -p "$out"
+merged="$out/defconfig"
+cat "$base_config" "$board_config" >"$merged"
+
+# OBAKE_BOARD lets the post-build and post-image hooks emit board-specific
+# artifacts (console, bootloader) without re-deriving the board from the config.
+export OBAKE_BOARD="$board"
+
+make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" DEFCONFIG="$merged" defconfig
 make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" "$@"
