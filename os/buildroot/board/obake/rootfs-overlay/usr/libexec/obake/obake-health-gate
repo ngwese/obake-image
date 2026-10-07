@@ -1,0 +1,44 @@
+#!/bin/sh
+# obake health gate.
+#
+# Runs early on boot while an update is pending (the update client leaves
+# /persist/obake/health/pending and a configuration snapshot). It validates the
+# running update via the launcher's health check over a bounded number of boots.
+# On success it marks the slot good. If the bound is reached, it marks the slot
+# bad, activates the previous slot, and restores the prior shape configuration.
+set -u
+
+conf="/etc/obake/health.conf"
+[ -r "$conf" ] && . "$conf"
+: "${max_attempts:=3}"
+
+state_dir="/persist/obake/health"
+pending="$state_dir/pending"
+[ -f "$pending" ] || exit 0
+
+attempts="$(sed -n 's/^attempts=//p' "$pending" | head -1)"
+snapshot="$(sed -n 's/^snapshot=//p' "$pending" | head -1)"
+attempts="${attempts:-0}"
+
+if /usr/libexec/obake/obake-launcher health; then
+	rauc status mark-good >/dev/null 2>&1 || true
+	rm -f "$pending"
+	printf 'OBKA_HEALTH_PASS attempts=%s\n' "$attempts"
+	exit 0
+fi
+
+attempts=$((attempts + 1))
+if [ "$attempts" -ge "$max_attempts" ]; then
+	rauc status mark-bad >/dev/null 2>&1 || true
+	rauc status mark-active other >/dev/null 2>&1 || true
+	if [ -n "$snapshot" ]; then
+		/usr/libexec/obake/obake-launcher restore "$snapshot" || true
+	fi
+	rm -f "$pending"
+	printf 'OBKA_HEALTH_REVERT attempts=%s\n' "$attempts"
+	exit 0
+fi
+
+printf 'snapshot=%s\nattempts=%s\n' "$snapshot" "$attempts" >"$pending"
+printf 'OBKA_HEALTH_RETRY attempts=%s\n' "$attempts"
+exit 0

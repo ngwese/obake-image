@@ -1,0 +1,23 @@
+#!/bin/sh
+# Bind-mount the persisted subset of /var from the persist partition. /var is a
+# tmpfs, so anything not listed in /etc/obake/persisted-var is discarded on
+# reboot.
+set -eu
+
+[ -d /persist ] || exit 0
+mkdir -p /persist/var
+
+list="/etc/obake/persisted-var"
+[ -f "$list" ] || exit 0
+
+while IFS= read -r path; do
+	case "$path" in
+	'' | '#'*) continue ;;
+	esac
+	src="/persist/var/$path"
+	dst="/var/$path"
+	mkdir -p "$src" "$dst"
+	if ! mountpoint -q "$dst"; then
+		mount --bind "$src" "$dst"
+	fi
+done <"$list"

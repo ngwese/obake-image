@@ -38,6 +38,32 @@ ukify="$(command -v ukify || true)"
 [ -n "$ukify" ] || ukify="$HOST_DIR/bin/ukify"
 [ -x "$ukify" ] || { log "error: ukify not found (need host-systemd)"; exit 1; }
 
+# Assemble the initramfs the UKIs bundle: busybox + libc + the obake init that
+# mounts the root slot and overlays /etc from persist.
+initramfs="$binaries/initramfs.gz"
+assemble_initramfs() {
+	d="$binaries/.initramfs"
+	rm -rf "$d"
+	mkdir -p "$d/bin" "$d/sbin" "$d/usr/bin" "$d/usr/lib" "$d/proc" "$d/sys" "$d/dev" "$d/run"
+	ln -sf usr/lib "$d/lib"
+	install -m 0755 "$TARGET_DIR/bin/busybox" "$d/bin/busybox"
+	for a in sh mount umount switch_root mkdir cat sleep echo head modprobe find; do
+		ln -sf busybox "$d/bin/$a"
+	done
+	if [ -x "$TARGET_DIR/usr/bin/blkid" ]; then
+		install -m 0755 "$TARGET_DIR/usr/bin/blkid" "$d/usr/bin/blkid"
+		ln -sf ../usr/bin/blkid "$d/bin/blkid"
+	fi
+	for l in ld-linux-aarch64.so.1 ld-linux.so.2 libc.so.6 libm.so.6 \
+		libresolv.so.2 libgcc_s.so.1 libblkid.so.1 libuuid.so.1; do
+		[ -e "$TARGET_DIR/usr/lib/$l" ] && cp -a "$TARGET_DIR/usr/lib/$l" "$d/usr/lib/"
+	done
+	install -m 0755 "$here/initramfs/init" "$d/init"
+	( cd "$d" && find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -9 ) >"$initramfs"
+	log "assembled initramfs ($(du -h "$initramfs" | cut -f1))"
+}
+assemble_initramfs
+
 label_for() {
 	python3 - "$layout" "$1" <<'PY'
 import json, sys
@@ -55,6 +81,7 @@ for slot in a b; do
 	log "building UKI for slot $slot ($cmdline)"
 	"$ukify" build \
 		--linux="$binaries/$kern" \
+		--initrd="$initramfs" \
 		--cmdline="$cmdline" \
 		--os-release="@$TARGET_DIR/etc/os-release" \
 		--stub="$stub" \

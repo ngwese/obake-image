@@ -1,0 +1,177 @@
+#!/bin/sh
+# obake update client.
+#
+# Updates are user-initiated only: nothing runs this automatically. `apply`
+# obtains a signed RAUC bundle, preferring removable USB media, then the
+# configured HTTPS endpoint, and installs it to the inactive slot.
+#
+# Configuration lives in /etc/obake/update.conf (under the persistent /etc
+# overlay, so edits survive reboots and slot switches). Bundle signature
+# verification always applies, so a USB or plain-HTTP source is no less
+# trustworthy than HTTPS.
+set -u
+
+conf="${OBKA_UPDATE_CONF:-/etc/obake/update.conf}"
+[ -r "$conf" ] && . "$conf"
+: "${https_url:=}"
+: "${usb_prefer:=1}"
+: "${tls_cacert:=}"
+: "${tls_insecure:=0}"
+: "${local_bundle:=}"
+
+usage() {
+	printf 'usage: obake-update {status|apply|rollback}\n' >&2
+	exit 2
+}
+
+running_version() {
+	cat /etc/obake/image-version 2>/dev/null || echo unknown
+}
+
+# Bundle downloads can be large, too large for the tmpfs /run, so stage them on
+# the user partition when it is available.
+stage_path() {
+	if mountpoint -q /home 2>/dev/null; then
+		dir="/home/.obake-update"
+	else
+		dir="/run"
+	fi
+	mkdir -p "$dir" 2>/dev/null || dir="/run"
+	printf '%s/obake-update.raucb' "$dir"
+}
+
+# Find the first RAUC bundle on removable media. Prints the mount point and the
+# bundle path on two lines; the caller unmounts after installing.
+# Try to find a RAUC bundle on one partition. Prints "<mount>\n<bundle>" on
+# success; leaves nothing mounted on failure.
+try_mount_bundle() {
+	part="$1"
+	mnt="$(mktemp -d /run/obake-usb.XXXXXX)" || return 1
+	if mount -o ro "$part" "$mnt" 2>/dev/null; then
+		bundle="$(find "$mnt" -maxdepth 2 -type f -name '*.raucb' 2>/dev/null | sort | head -1)"
+		if [ -n "$bundle" ]; then
+			printf '%s\n%s\n' "$mnt" "$bundle"
+			return 0
+		fi
+		umount "$mnt"
+	fi
+	rmdir "$mnt" 2>/dev/null || true
+	return 1
+}
+
+find_usb_bundle() {
+	# Prefer partitions flagged removable (real USB media)...
+	for part in $(lsblk -pnro NAME,RM,TYPE 2>/dev/null | awk '$2 == 1 && $3 == "part" { print $1 }'); do
+		found="$(try_mount_bundle "$part")" && {
+			printf '%s\n' "$found"
+			return 0
+		}
+	done
+	# ...then any partition carrying a bundle (QEMU usb-storage reports
+	# removable=0, and some media do too).
+	for part in $(lsblk -pnro NAME,RM,TYPE 2>/dev/null | awk '$3 == "part" { print $1 }'); do
+		found="$(try_mount_bundle "$part")" && {
+			printf '%s\n' "$found"
+			return 0
+		}
+	done
+	return 1
+}
+
+fetch_https_bundle() {
+	[ -n "$https_url" ] || return 1
+	staged="$(stage_path)"
+	set -- -fsSL --retry 5 --retry-connrefused --retry-delay 2 -o "$staged"
+	[ -n "$tls_cacert" ] && set -- "$@" --cacert "$tls_cacert"
+	[ "$tls_insecure" = 1 ] && set -- "$@" -k
+	curl "$@" "$https_url" || return 1
+	printf '%s' "$staged"
+}
+
+cmd_status() {
+	printf 'running version: %s\n' "$(running_version)"
+	printf 'active slot: %s\n' "$(rauc status 2>/dev/null | sed -n 's/^Booted from: //p')"
+	printf 'pending/activated: %s\n' "$(rauc status 2>/dev/null | sed -n 's/^Activated: //p')"
+	rauc status >/dev/null 2>&1 || {
+		printf 'update state: unavailable (RAUC service not responding)\n'
+		return 1
+	}
+}
+
+cmd_apply() {
+	# Snapshot the shape configuration and mark the update pending before the
+	# inactive slot is written, so the health gate can restore on failure.
+	id="$(date +%Y%m%d%H%M%S 2>/dev/null || echo manual)"
+	/usr/libexec/obake/obake-launcher snapshot "$id" >/dev/null 2>&1 || true
+	mkdir -p /persist/obake/health 2>/dev/null || true
+	printf 'snapshot=%s\nattempts=0\n' "$id" >/persist/obake/health/pending 2>/dev/null || true
+
+	# A local bundle (test/development) is used directly when configured.
+	if [ -n "$local_bundle" ] && [ -f "$local_bundle" ]; then
+		printf 'obake-update: installing %s (local)\n' "$local_bundle" >&2
+		rauc install "$local_bundle"
+		return $?
+	fi
+
+	# Prefer USB when configured and present.
+	if [ "$usb_prefer" = 1 ]; then
+		if found="$(find_usb_bundle 2>/dev/null)"; then
+			mnt="$(printf '%s\n' "$found" | sed -n 1p)"
+			bundle="$(printf '%s\n' "$found" | sed -n 2p)"
+			printf 'obake-update: installing %s (USB)\n' "$bundle" >&2
+			rauc install "$bundle"
+			rc=$?
+			umount "$mnt" 2>/dev/null || true
+			rmdir "$mnt" 2>/dev/null || true
+			return $rc
+		fi
+	fi
+
+	bundle="$(fetch_https_bundle 2>/dev/null)" || bundle=""
+	if [ -n "$bundle" ]; then
+		printf 'obake-update: installing %s (HTTPS)\n' "$bundle" >&2
+		rauc install "$bundle"
+		return $?
+	fi
+
+	# Last resort: USB even when not preferred.
+	if found="$(find_usb_bundle 2>/dev/null)"; then
+		mnt="$(printf '%s\n' "$found" | sed -n 1p)"
+		bundle="$(printf '%s\n' "$found" | sed -n 2p)"
+		printf 'obake-update: installing %s (USB)\n' "$bundle" >&2
+		rauc install "$bundle"
+		rc=$?
+		umount "$mnt" 2>/dev/null || true
+		rmdir "$mnt" 2>/dev/null || true
+		return $rc
+	fi
+
+	printf 'obake-update: no update bundle available\n' >&2
+	exit 1
+}
+
+cmd_rollback() {
+	cur="$(rauc status 2>/dev/null | sed -n 's/^Booted from: \(rootfs\.[01]\).*/\1/p')"
+	if [ -z "$cur" ]; then
+		printf 'obake-update: cannot determine the booted slot\n' >&2
+		exit 1
+	fi
+	printf 'obake-update: booted %s; reverting to the previous slot\n' "$cur" >&2
+	rauc status mark-bad "$cur" >/dev/null 2>&1 || true
+	if ! rauc status mark-active other >/dev/null 2>&1; then
+		printf 'obake-update: failed to activate the previous slot\n' >&2
+		exit 1
+	fi
+	# Best effort: restore the configuration snapshot taken before the update
+	# and clear any pending health-gate state.
+	/usr/libexec/obake/obake-launcher restore >/dev/null 2>&1 || true
+	rm -f /persist/obake/health/pending 2>/dev/null || true
+	printf 'obake-update: previous slot activated; reboot to complete the rollback\n'
+}
+
+case "${1:-}" in
+status) cmd_status ;;
+apply) cmd_apply ;;
+rollback) cmd_rollback ;;
+*) usage ;;
+esac

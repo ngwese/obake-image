@@ -1,0 +1,17 @@
+[Unit]
+Description=obake health gate
+Documentation=file:/etc/obake/directory-contract
+After=obake-runtime.target obake-launcher.service
+Requires=obake-runtime.target
+ConditionPathExists=/persist/obake/health/pending
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/obake/obake-health-gate
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

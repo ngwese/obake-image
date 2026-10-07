@@ -1,0 +1,79 @@
+#!/bin/sh
+# obake initramfs init.
+#
+# Mounts the root slot named by the kernel command line, overlays its /etc with
+# the persist partition when the image declares an /etc overlay, and hands off
+# to systemd. If persist is unavailable the read-only root is used unchanged.
+set -u
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t tmpfs tmpfs /run 2>/dev/null || true
+
+cmdline="$(cat /proc/cmdline 2>/dev/null)"
+root_spec=""
+for arg in $cmdline; do
+	case "$arg" in
+	root=*) root_spec="${arg#root=}" ;;
+	esac
+done
+
+# Resolve a PARTLABEL=/LABEL= spec to a device, waiting for it to appear.
+find_dev() {
+	spec="$1"
+	case "$spec" in
+	PARTLABEL=* | LABEL=*)
+		key="${spec%%=*}"
+		val="${spec#*=}"
+		;;
+	*) printf '%s\n' "$spec"; return 0 ;;
+	esac
+	tries=0
+	while [ "$tries" -lt 100 ]; do
+		dev="$(blkid -t "$key=$val" -o device 2>/dev/null | head -1)"
+		[ -n "$dev" ] && { printf '%s\n' "$dev"; return 0; }
+		sleep 0.1
+		tries=$((tries + 1))
+	done
+	return 1
+}
+
+boot_root() {
+	root_dev="$(find_dev "$root_spec")" || root_dev="$root_spec"
+	mkdir -p /newroot
+	tries=0
+	while [ "$tries" -lt 100 ]; do
+		if mount -o ro "$root_dev" /newroot 2>/dev/null; then
+			return 0
+		fi
+		sleep 0.1
+		tries=$((tries + 1))
+	done
+	return 1
+}
+
+if ! boot_root; then
+	printf 'obake-init: cannot mount root (%s)\n' "$root_spec" >&2
+	exec /bin/sh
+fi
+
+# Overlay /etc from persist when the image opts in.
+if [ -e /newroot/etc/obake/etc-overlay ]; then
+	persist_dev="$(find_dev PARTLABEL=OBKA_PERSIST)" || persist_dev=""
+	if [ -n "$persist_dev" ] && mount -t ext4 "$persist_dev" /newroot/persist 2>/dev/null; then
+		upper=/newroot/persist/etc-overlay/upper
+		work=/newroot/persist/etc-overlay/work
+		mkdir -p "$upper" "$work"
+		modprobe overlay 2>/dev/null || true
+		mount -t overlay \
+			-o "lowerdir=/newroot/etc,upperdir=$upper,workdir=$work" \
+			overlay /newroot/etc 2>/dev/null ||
+			printf 'obake-init: /etc overlay failed\n' >&2
+	fi
+fi
+
+exec switch_root /newroot /sbin/init

@@ -1,0 +1,7 @@
+# obake writable directory contract. Locations a user may customize. Everything
+# else on the root filesystem is read-only.
+#
+# /etc                   persistent overlay (survives boot and slot switch)
+# /var                   volatile tmpfs; only the persisted subset survives
+# /home                  user partition (survives updates and reinstalls)
+# /persist               persist partition
