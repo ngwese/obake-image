@@ -37,6 +37,19 @@ A Linux host with the build dependencies can also run
 `image/os/buildroot/build.sh` directly; `build.sh` detects Docker and otherwise
 builds on the host.
 
+## Verification environment
+
+The harnesses need QEMU, OVMF/EDK2, the disk tools, and `rauc`. A host that has
+them runs the harnesses directly. A host without them (a bare WSL2 install, for
+example) can run the same harnesses unchanged inside `verify-env/`, which
+provides that toolchain natively and passes through KVM and the Docker socket so
+a harness can still ask `build.sh` to build artifacts in the build container:
+
+```
+image/verification/verify-env/run.sh image/verification/qemu/boot-test.sh \
+  dist/os/x86_64/disk-a.img
+```
+
 ## QEMU checks
 
 All harnesses are headless (serial on stdio) and report a deterministic pass or
@@ -62,6 +75,9 @@ image/verification/qemu/boot-test.sh dist/os/aarch64/disk-a.img OBKA_VERIFY_PASS
   or rejection of an untrusted bundle.
 - `health-test.sh [pass|revert] [arch]` — health gate marks a healthy slot good,
   or reverts a persistently unhealthy update and restores configuration.
+- `integration-test.sh [arch]` — end-to-end: installer, customize, update,
+  forced failed update, and revert, asserting reversion and that the user
+  partition is unchanged.
 - `dev-vm.sh` — developer helper: build with an SSH key, install to a virtual
   disk, boot with SSH forwarded. See `../docs/dev-qemu.md`.
 - `update-server.sh <bundle-dir> [port]` — development update service.
