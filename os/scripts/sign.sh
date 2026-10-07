@@ -36,11 +36,21 @@ else
   printf '[sign] signed %s artifacts with %s\n' "${#artifacts[@]}" "$key" >&2
 fi
 
-cat >image-manifest.json <<EOF
-{
-  "version": "$version",
-  "arch": "$arch",
-  "slot": "$slot",
-  "artifacts": $(printf '%s\n' "${artifacts[@]}" | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+python3 - "$version" "$arch" "$slot" "$out" "${artifacts[@]}" <<'PY'
+import json, os, sys
+
+version, arch, slot, out = sys.argv[1:5]
+manifest = {
+    "version": version,
+    "arch": arch,
+    "slot": slot,
+    "artifacts": sys.argv[5:],
 }
-EOF
+pinned = os.path.join(out, "pinned-inputs.json")
+if os.path.exists(pinned):
+    with open(pinned) as f:
+        manifest["pinned_inputs"] = json.load(f)
+with open(os.path.join(out, "image-manifest.json"), "w") as f:
+    json.dump(manifest, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY

@@ -1,0 +1,4 @@
+# board: generic-aarch64
+# pinned inputs: generic-aarch64.pinned-inputs.json
+f51234051c7455bebe76621fd115452dd63f29eef2ba59c4250db7e8f0177c71  root-a.tar
+5f6ba8ea4242400d04991beb65137f3f8e3898f230fe9276c191a526e9c9931e  pinned-inputs.json

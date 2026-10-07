@@ -122,6 +122,13 @@ root-owns the ported configuration (polkit and sshd require it) and adds the
 always selects the same base userland and kernel. Bumping either pin and
 rebuilding is the only way the base changes.
 
+The base defconfig sets `BR2_REPRODUCIBLE` (fixed `SOURCE_DATE_EPOCH`,
+normalized paths/timezone), so a rebuild from unchanged pins reproduces the
+rootfs archive. Each build also emits `pinned-inputs.json` next to the artifacts
+(`scripts/pinned-inputs.sh`, embedded in `image-manifest.json`) recording the
+Buildroot release, kernel, runtime, and EFI-stub versions selected. See
+`../verification/README.md` for the reproducibility check.
+
 Buildroot downloads every package from `sources.buildroot.net`
 (`BR2_PRIMARY_SITE` in the defconfigs); hashes are still checked, so the mirror
 is transport only. Set `DL_DIR` to a populated directory to build offline.

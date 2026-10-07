@@ -139,9 +139,12 @@ if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
 		"$binaries/root-b.img" "$binaries/obake-b.efi" "$binaries"
 fi
 
+# Record the pinned inputs (Buildroot, kernel, runtime, EFI stub) alongside the
+# artifacts, so a build's exact inputs are reproducible from the output alone.
+bash "$scripts/pinned-inputs.sh" "$binaries" "$board" "$mkarch" "$TARGET_DIR"
+
 log "writing version, checksums, manifest and signatures"
 VERSION="$version" ARCH="$mkarch" SLOT=a \
 	OBKA_SIGNING_KEY="${OBKA_SIGNING_KEY:-}" \
 	bash "$scripts/sign.sh" "$binaries"
-
 log "done: $arch version $version"

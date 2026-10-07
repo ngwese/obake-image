@@ -93,7 +93,20 @@ can prove the matching check fails:
 ## Reproducibility
 
 The base is pinned by the Buildroot release and per-package versions and hashes
-(`image/os/buildroot/pins.json`), so unchanged pins select the same package,
-kernel, and runtime versions on any host. The canonical reproducible artifact is
-the rootfs archive (`root-<slot>.tar`); the ext4 image is a derived boot
-artifact. `verification/reproducibility.sh <platform>` records artifact digests.
+(`image/os/buildroot/pins.json`), and the base defconfig enables
+`BR2_REPRODUCIBLE` (fixed `SOURCE_DATE_EPOCH`, normalized paths/timezone), so
+unchanged pins select the same package, kernel, and runtime versions and yield a
+byte-identical rootfs archive. Each build emits `pinned-inputs.json` next to the
+artifacts (embedded in `image-manifest.json`), recording the exact Buildroot,
+kernel, runtime, and EFI-stub versions it used.
+
+```
+image/verification/reproducibility.sh [board]
+```
+
+builds the board twice with the same output directory (clean between) and the
+frozen download cache, and asserts `root-a.tar` and `pinned-inputs.json` are
+identical, writing a record to
+`image/verification/reproducibility/<board>.sha256` and printing
+`OBKA_REPRODUCIBLE_PASS`. On macOS it runs the builds in the native build
+container.
