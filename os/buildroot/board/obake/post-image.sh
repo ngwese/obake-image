@@ -68,8 +68,8 @@ assemble_initramfs() {
 		install -m 0755 "$TARGET_DIR/usr/bin/blkid" "$d/usr/bin/blkid"
 		ln -sf ../usr/bin/blkid "$d/bin/blkid"
 	fi
-	for l in ld-linux-aarch64.so.1 ld-linux.so.2 libc.so.6 libm.so.6 \
-		libresolv.so.2 libgcc_s.so.1 libblkid.so.1 libuuid.so.1; do
+	for l in ld-linux-aarch64.so.1 ld-linux-x86-64.so.2 ld-linux.so.2 libc.so.6 \
+		libm.so.6 libresolv.so.2 libgcc_s.so.1 libblkid.so.1 libuuid.so.1; do
 		[ -e "$TARGET_DIR/usr/lib/$l" ] && cp -L "$TARGET_DIR/usr/lib/$l" "$d/usr/lib/"
 	done
 	install -m 0755 "$here/initramfs/init" "$d/init"
