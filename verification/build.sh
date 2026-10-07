@@ -31,7 +31,7 @@ amd64 | x86_64) arch=x86_64 ;;
 arm64 | aarch64) arch=aarch64 ;;
 *) arch="$arch_arg" ;;
 esac
-defconfig="obake_${arch}_defconfig"
+board="${OBAKE_BOARD:-generic-${arch}}"
 out="${2:-$project_root/dist/os/$arch}"
 
 mkdir -p "$out"
@@ -53,26 +53,26 @@ if command -v docker >/dev/null 2>&1; then
 	# MAKE_DISK defaults to 1 so the disk images the harnesses boot exist.
 	"$here/build-env/run.sh" bash -lc "
 		set -e
-		bash image/os/buildroot/build.sh $defconfig
+		bash image/os/buildroot/build.sh $board
 	"
 	# Stage the images directory onto the host.
 	ctr="$(docker create -v "$volume":/cache "$image" true)"
 	rm -rf "$out"
 	mkdir -p "$out"
-	docker cp "$ctr":"$work_in_container/output/$defconfig/images/." "$out/"
+	docker cp "$ctr":"$work_in_container/output/$board/images/." "$out/"
 	docker rm "$ctr" >/dev/null
 	# Drop the large derived images from the cache tree; they are regenerated
 	# each build and would otherwise accumulate in the build volume.
 	docker run --rm -v "$volume":/cache "$image" sh -c \
-		"rm -rf $work_in_container/output/$defconfig/images/disk-*.img \
-			$work_in_container/output/$defconfig/images/.disk-work \
-			$work_in_container/output/$defconfig/images/.installer" >/dev/null 2>&1 || true
+		"rm -rf $work_in_container/output/$board/images/disk-*.img \
+			$work_in_container/output/$board/images/.disk-work \
+			$work_in_container/output/$board/images/.installer" >/dev/null 2>&1 || true
 else
 	export LAYOUT="${LAYOUT:-$project_root/image/os/partition-layout.verify.json}"
 	work="${OBAKE_WORK:-$project_root/image/.build/buildroot}"
 	OBAKE_WORK="$work" DL_DIR="${DL_DIR:-$project_root/image/os/buildroot/vendor/dl}" \
-		bash "$project_root/image/os/buildroot/build.sh" "$defconfig"
-	cp -a "$work/output/$defconfig/images/." "$out/"
+		bash "$project_root/image/os/buildroot/build.sh" "$board"
+	cp -a "$work/output/$board/images/." "$out/"
 fi
 
 printf '%s\n' "$out"
