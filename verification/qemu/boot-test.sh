@@ -32,6 +32,7 @@ timeout "$timeout_s" "$OBKA_QEMU_BIN" \
 	$OBKA_QEMU_FW_ARGS \
 	-drive if=pflash,format=raw,file="$vars" \
 	-drive file="$disk",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
+	-netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
 	-nographic >"$log" 2>&1
 status=$?
 set -e

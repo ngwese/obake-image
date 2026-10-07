@@ -45,9 +45,13 @@ find_dev() {
 boot_root() {
 	root_dev="$(find_dev "$root_spec")" || root_dev="$root_spec"
 	mkdir -p /newroot
+	mode=ro
+	case " $cmdline " in
+	*" rw "*) mode=rw ;;
+	esac
 	tries=0
 	while [ "$tries" -lt 100 ]; do
-		if mount -o ro "$root_dev" /newroot 2>/dev/null; then
+		if mount -o "$mode" "$root_dev" /newroot 2>/dev/null; then
 			return 0
 		fi
 		sleep 0.1

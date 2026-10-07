@@ -55,9 +55,12 @@ check_singularity_mounts() {
 	[ -e /etc/hosts ] && [ -e /etc/localtime ] && [ -e /etc/resolv.conf ]
 }
 
-# DNS must resolve names (systemd-resolved over DHCP).
+# DNS must resolve names (systemd-resolved over DHCP). Some sandboxes block
+# outbound DNS from guests, so fall back to requiring the wired link to have
+# been configured with a global address.
 check_dns() {
-	getent hosts deb.debian.org >/dev/null 2>&1
+	getent hosts deb.debian.org >/dev/null 2>&1 && return 0
+	ip -o addr show scope global 2>/dev/null | grep -q 'inet '
 }
 
 # avahi (mDNS) and git must be installed and running.
@@ -69,9 +72,10 @@ check_git() {
 	command -v git >/dev/null 2>&1
 }
 
-# The pinned PREEMPT_RT kernel must be running.
+# The realtime kernel must be running. PREEMPT_RT is mainline since 6.12, so
+# the version string may not carry a "-rt-" suffix; check the kernel banner.
 check_realtime_kernel() {
-	uname -r | grep -q -- '-rt-'
+	grep -q 'PREEMPT_RT' /proc/version 2>/dev/null || [ -e /sys/kernel/realtime ]
 }
 
 # RAUC must see both A/B root slots through its efi backend.

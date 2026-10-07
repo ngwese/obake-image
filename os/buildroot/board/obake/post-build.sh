@@ -58,6 +58,13 @@ fi
 # Mount points for the writable contract (persist, user, ESP).
 install -d "${target_dir}/persist" "${target_dir}/home" "${target_dir}/boot/efi"
 
+# Record the pinned Singularity CE version for the guest functional checks.
+if [ -f "${extroot}/package/singularity/singularity.mk" ] &&
+	[ -e "${target_dir}/usr/bin/singularity" ]; then
+	sing_ver="$(sed -n 's/^SINGULARITY_VERSION = //p' "${extroot}/package/singularity/singularity.mk")"
+	[ -n "$sing_ver" ] && printf 'singularity=%s\n' "$sing_ver" >"${target_dir}/etc/obake/singularity"
+fi
+
 # Install verification guest checks and apply any BREAK fault injection.
 bash "${extroot}/board/obake/install-verify.sh" "$target_dir"
 

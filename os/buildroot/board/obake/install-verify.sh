@@ -66,6 +66,12 @@ embed_bundle() { # <src> <dst-name>
 
 apply_break
 
+# Remove any verification services left by a previous build in this tree.
+rm -f "$target_dir"/etc/systemd/system/obake-verify.service \
+	"$target_dir"/etc/systemd/system/obake-*-test.service
+rm -f "$target_dir"/etc/systemd/system/multi-user.target.wants/obake-verify.service \
+	"$target_dir"/etc/systemd/system/multi-user.target.wants/obake-*-test.service
+
 [ "$verify" = "1" ] || exit 0
 
 install -d "$target_dir/usr/libexec/obake"
