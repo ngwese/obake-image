@@ -79,7 +79,9 @@ PY
 
 for slot in a b; do
 	root_label="$(label_for "root_$slot")"
-	cmdline="root=PARTLABEL=$root_label ro rootwait console=$cons loglevel=7 efi=runtime"
+	mode=ro
+	[ "${BREAK:-}" = "ro" ] && mode=rw
+	cmdline="root=PARTLABEL=$root_label $mode rootwait console=$cons loglevel=7 efi=runtime"
 	log "building UKI for slot $slot ($cmdline)"
 	"$ukify" build \
 		--linux="$binaries/$kern" \
@@ -102,6 +104,14 @@ fi
 
 if [ "${MAKE_INSTALLER:-0}" = "1" ]; then
 	"$here/make-installer.sh" "$binaries"
+fi
+
+# A signed update bundle for the inactive slot, when signing material is set.
+if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
+	log "building signed update bundle"
+	RAUC_SIGNING_CERT="$RAUC_SIGNING_CERT" RAUC_SIGNING_KEY="$RAUC_SIGNING_KEY" \
+		"$scripts/make-bundle.sh" b "$version" \
+		"$binaries/root-b.img" "$binaries/obake-b.efi" "$binaries"
 fi
 
 log "writing version, checksums, manifest and signatures"

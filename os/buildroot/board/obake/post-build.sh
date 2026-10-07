@@ -51,9 +51,15 @@ mkdir -p "${target_dir}/etc/obake"
 	printf 'image=%s\n' "$kver"
 } >"${target_dir}/etc/obake/kernel"
 printf '%s\n' "$image_version" >"${target_dir}/etc/obake/image-version"
+if [ -n "${IMAGE_TAG:-}" ]; then
+	printf '%s\n' "$IMAGE_TAG" >"${target_dir}/etc/obake/image-tag"
+fi
 
 # Mount points for the writable contract (persist, user, ESP).
 install -d "${target_dir}/persist" "${target_dir}/home" "${target_dir}/boot/efi"
+
+# Install verification guest checks and apply any BREAK fault injection.
+"${extroot}/board/obake/install-verify.sh" "$target_dir"
 
 # Optional SSH public key for the obake user, provisioned into the image.
 if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
