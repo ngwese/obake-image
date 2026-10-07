@@ -52,6 +52,9 @@ mkdir -p "${target_dir}/etc/obake"
 } >"${target_dir}/etc/obake/kernel"
 printf '%s\n' "$image_version" >"${target_dir}/etc/obake/image-version"
 
+# Mount points for the writable contract (persist, user, ESP).
+install -d "${target_dir}/persist" "${target_dir}/home" "${target_dir}/boot/efi"
+
 # Optional SSH public key for the obake user, provisioned into the image.
 if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
 	install -d "${target_dir}/etc/ssh/authorized_keys.d"

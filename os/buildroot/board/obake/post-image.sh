@@ -46,6 +46,8 @@ assemble_initramfs() {
 	rm -rf "$d"
 	mkdir -p "$d/bin" "$d/sbin" "$d/usr/bin" "$d/usr/lib" "$d/proc" "$d/sys" "$d/dev" "$d/run"
 	ln -sf usr/lib "$d/lib"
+	ln -sf lib "$d/lib64"
+	ln -sf lib "$d/usr/lib64"
 	install -m 0755 "$TARGET_DIR/bin/busybox" "$d/bin/busybox"
 	for a in sh mount umount switch_root mkdir cat sleep echo head modprobe find; do
 		ln -sf busybox "$d/bin/$a"
@@ -56,7 +58,7 @@ assemble_initramfs() {
 	fi
 	for l in ld-linux-aarch64.so.1 ld-linux.so.2 libc.so.6 libm.so.6 \
 		libresolv.so.2 libgcc_s.so.1 libblkid.so.1 libuuid.so.1; do
-		[ -e "$TARGET_DIR/usr/lib/$l" ] && cp -a "$TARGET_DIR/usr/lib/$l" "$d/usr/lib/"
+		[ -e "$TARGET_DIR/usr/lib/$l" ] && cp -L "$TARGET_DIR/usr/lib/$l" "$d/usr/lib/"
 	done
 	install -m 0755 "$here/initramfs/init" "$d/init"
 	( cd "$d" && find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -9 ) >"$initramfs"

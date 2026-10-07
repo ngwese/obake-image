@@ -60,10 +60,14 @@ if ! boot_root; then
 	printf 'obake-init: cannot mount root (%s)\n' "$root_spec" >&2
 	exec /bin/sh
 fi
+printf 'obake-init: root=%s spec=%s\n' "$root_dev" "$root_spec" >&2
 
 # Overlay /etc from persist when the image opts in.
+printf 'obake-init: marker=%s\n' "$([ -e /newroot/etc/obake/etc-overlay ] && echo yes || echo no)" >&2
 if [ -e /newroot/etc/obake/etc-overlay ]; then
 	persist_dev="$(find_dev PARTLABEL=OBKA_PERSIST)" || persist_dev=""
+	printf 'obake-init: persist_dev=%s\n' "${persist_dev:-none}" >&2
+	mkdir -p /newroot/persist
 	if [ -n "$persist_dev" ] && mount -t ext4 "$persist_dev" /newroot/persist 2>/dev/null; then
 		upper=/newroot/persist/etc-overlay/upper
 		work=/newroot/persist/etc-overlay/work
@@ -73,6 +77,9 @@ if [ -e /newroot/etc/obake/etc-overlay ]; then
 			-o "lowerdir=/newroot/etc,upperdir=$upper,workdir=$work" \
 			overlay /newroot/etc 2>/dev/null ||
 			printf 'obake-init: /etc overlay failed\n' >&2
+		printf 'obake-init: overlay set up\n' >&2
+	else
+		printf 'obake-init: persist unavailable (%s)\n' "${persist_dev:-none}" >&2
 	fi
 fi
 
