@@ -3,35 +3,32 @@ set -euo pipefail
 
 # Interactive installer verification: boot the installer with no preselected
 # disk, drive the serial console to select the target disk and confirm the
-# destructive action, and assert the install completes. Run inside the build
-# environment.
+# destructive action, and assert the install completes.
 #
 # Usage: install-interactive-test.sh [arch]
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/qemu-env.sh"
 
-project_root="$(cd "$here/../.." && pwd)"
-arch="${1:-amd64}"
-out="${OUT_BASE:-$project_root/dist/verify/$arch/install-interactive}"
+project_root="$(cd "$here/../../.." && pwd)"
+arch="${1:-native}"
+out="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/install-interactive}"
 timeout_s="${INSTALL_TIMEOUT:-900}"
-
-ovmf_code="${OVMF_CODE:-/usr/share/OVMF/OVMF_CODE_4M.fd}"
-ovmf_vars="${OVMF_VARS:-/usr/share/OVMF/OVMF_VARS_4M.fd}"
+arch_dir="$project_root/dist/os/$OBKA_ARCH"
 
 mkdir -p "$out"
 printf '[install-interactive] building installer image\n'
-INSTALLER_TARGET_DISK=interactive INSTALLER_PRESERVE_USER=1 MAKE_INSTALLER=1 \
-  ARCH="$arch" OUT="$out/artifacts" "$project_root/os/build.sh" \
-  >"$out/build.log" 2>&1
+[ -f "$arch_dir/installer.img" ] || \
+	( cd "$project_root/image/verification" && MAKE_INSTALLER=1 \
+		INSTALLER_TARGET_DISK=interactive ./build.sh "$arch" "$arch_dir" ) >"$out/build.log" 2>&1
 
-installer="$out/artifacts/installer.img"
+installer="$arch_dir/installer.img"
+[ -f "$installer" ] || { printf 'missing installer image: %s\n' "$installer" >&2; exit 2; }
 target="$out/target.img"
 rm -f "$target"
-qemu-img create -f raw "$target" 16G >/dev/null
+qemu-img create -f raw "$target" 8G >/dev/null
 
-python3 - "$installer" "$target" "$ovmf_code" "$ovmf_vars" "$out/serial.log" \
-  "$timeout_s" <<'PY'
+python3 - "$installer" "$target" "$out/serial.log" "$timeout_s" <<'PY'
 import os
 import select
 import shutil
@@ -40,25 +37,28 @@ import sys
 import tempfile
 import time
 
-installer, target, ovmf_code, ovmf_vars, log_path, timeout_s = sys.argv[1:7]
+installer, target, log_path, timeout_s = sys.argv[1:5]
 timeout_s = int(timeout_s)
 vars_file = tempfile.NamedTemporaryFile(delete=False).name
-shutil.copy(ovmf_vars, vars_file)
+shutil.copy(os.environ["OVMF_VARS"], vars_file)
 
+qemu_bin = os.environ.get("OBKA_QEMU_BIN", "qemu-system-aarch64")
+machine = os.environ.get("OBKA_QEMU_MACHINE_ARGS", "-machine virt").split()
+fw = os.environ.get("OBKA_QEMU_FW_ARGS", "").split()
 accel = os.environ.get("OBKA_QEMU_ACCEL_NAME", "tcg")
 cpu = os.environ.get("OBKA_QEMU_CPU", "max")
 smp = os.environ.get("OBKA_QEMU_SMP", "cores=4,threads=1,sockets=1")
 disk_opts = os.environ.get("OBKA_QEMU_DISK_OPTS", "cache=none,aio=threads")
 cmd = [
-    "qemu-system-x86_64", "-machine", "q35", "-accel", accel, "-cpu", cpu,
-    "-m", "2048", "-smp", smp,
-    "-no-reboot",
-    "-drive", f"if=pflash,format=raw,readonly=on,file={ovmf_code}",
+    qemu_bin, *machine, "-accel", accel, "-cpu", cpu,
+    "-m", "2048", "-smp", smp, "-no-reboot",
+    *fw,
     "-drive", f"if=pflash,format=raw,file={vars_file}",
     "-drive", f"if=none,id=inst,format=raw,file={installer},{disk_opts}",
     "-device", "virtio-blk-pci,drive=inst,bootindex=0",
     "-drive", f"if=none,id=tgt,format=raw,file={target},{disk_opts}",
     "-device", "virtio-blk-pci,drive=tgt,bootindex=1",
+    "-netdev", "user,id=net0", "-device", "virtio-net-pci,netdev=net0",
     "-nographic",
 ]
 proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,

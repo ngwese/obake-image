@@ -110,6 +110,7 @@ fi
 # A signed update bundle for the inactive slot, when signing material is set.
 if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
 	log "building signed update bundle"
+	rm -f "$binaries/obake-$version-b.raucb"
 	RAUC_SIGNING_CERT="$RAUC_SIGNING_CERT" RAUC_SIGNING_KEY="$RAUC_SIGNING_KEY" \
 		bash "$scripts/make-bundle.sh" b "$version" \
 		"$binaries/root-b.img" "$binaries/obake-b.efi" "$binaries"

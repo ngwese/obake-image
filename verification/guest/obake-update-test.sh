@@ -25,7 +25,20 @@ finish() {
 	/usr/bin/systemctl poweroff -f
 	exit 0
 }
-booted_slot() { rauc status 2>/dev/null | sed -n 's/^Booted from: \(rootfs\.[01]\).*/\1/p'; }
+# Slot the running system booted from. RAUC reports this from the EFI boot
+# entry; when booted via the removable-media fallback it cannot, so fall back to
+# the root partition label on the kernel command line.
+booted_slot() {
+	s="$(rauc status 2>/dev/null | sed -n 's/^Booted from: \(rootfs\.[01]\).*/\1/p')"
+	if [ -n "$s" ]; then
+		printf '%s' "$s"
+		return
+	fi
+	case "$(cat /proc/cmdline 2>/dev/null)" in
+	*OBKA_ROOT_A*) printf 'rootfs.0' ;;
+	*OBKA_ROOT_B*) printf 'rootfs.1' ;;
+	esac
+}
 primary_slot() { rauc status 2>/dev/null | sed -n 's/^Activated: \(rootfs\.[01]\).*/\1/p'; }
 
 # mount_tag <A|B> <present|absent>

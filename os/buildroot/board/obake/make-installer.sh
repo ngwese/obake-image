@@ -13,7 +13,7 @@ extroot="$(cd "$here/../.." && pwd)"
 os_dir="$(cd "$extroot/.." && pwd)"
 image_dir="$(cd "$os_dir/.." && pwd)"
 scripts="$os_dir/scripts"
-layout="$os_dir/partition-layout.json"
+layout="${LAYOUT:-$os_dir/partition-layout.json}"
 
 log() { printf '[installer] %s\n' "$*" >&2; }
 die() { log "error: $*"; exit 1; }

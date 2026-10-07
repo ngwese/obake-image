@@ -86,7 +86,7 @@ if [ -z "${OVMF_CODE:-}" ]; then
 		/usr/share/OVMF /usr/share/qemu /usr/share/edk2/aarch64 /usr/share/edk2/x64; do
 		[ -f "$(_obka_fw_code "$d")" ] || continue
 		OVMF_CODE="$(_obka_fw_code "$d")"
-		OVMF_VARS="$(_obka_fw_vars "$d")"
+		[ -n "${OVMF_VARS:-}" ] || OVMF_VARS="$(_obka_fw_vars "$d")"
 		break
 	done
 fi

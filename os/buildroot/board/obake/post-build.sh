@@ -53,6 +53,8 @@ mkdir -p "${target_dir}/etc/obake"
 printf '%s\n' "$image_version" >"${target_dir}/etc/obake/image-version"
 if [ -n "${IMAGE_TAG:-}" ]; then
 	printf '%s\n' "$IMAGE_TAG" >"${target_dir}/etc/obake/image-tag"
+else
+	rm -f "${target_dir}/etc/obake/image-tag"
 fi
 
 # Mount points for the writable contract (persist, user, ESP).
@@ -63,6 +65,23 @@ if [ -f "${extroot}/package/singularity/singularity.mk" ] &&
 	[ -e "${target_dir}/usr/bin/singularity" ]; then
 	sing_ver="$(sed -n 's/^SINGULARITY_VERSION = //p' "${extroot}/package/singularity/singularity.mk")"
 	[ -n "$sing_ver" ] && printf 'singularity=%s\n' "$sing_ver" >"${target_dir}/etc/obake/singularity"
+fi
+
+# Install the RAUC keyring the update system verifies bundles against.
+if [ -n "${RAUC_KEYRING:-}" ] && [ -f "$RAUC_KEYRING" ]; then
+	install -d "${target_dir}/etc/rauc"
+	install -m 0644 "$RAUC_KEYRING" "${target_dir}/etc/rauc/ca.cert.pem"
+fi
+
+# Verification overrides for the update client and health gate.
+if [ -n "${MOCK_HEALTH:-}" ] || [ -n "${HEALTH_MAX_ATTEMPTS:-}" ]; then
+	printf 'max_attempts=%s\nmock_health=%s\n' \
+		"${HEALTH_MAX_ATTEMPTS:-3}" "${MOCK_HEALTH:-pass}" \
+		>"${target_dir}/etc/obake/health.conf"
+fi
+if [ -n "${LOCAL_BUNDLE:-}" ] || [ -n "${UPDATE_URL:-}" ]; then
+	printf 'https_url=%s\nusb_prefer=1\nlocal_bundle=%s\n' \
+		"${UPDATE_URL:-}" "${LOCAL_BUNDLE:-}" >"${target_dir}/etc/obake/update.conf"
 fi
 
 # Install verification guest checks and apply any BREAK fault injection.

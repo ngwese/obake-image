@@ -38,6 +38,7 @@ RUN apt-get update \
         parted \
         openssl \
         rauc \
+        squashfs-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Buildroot builds some host tools as root.

@@ -43,6 +43,13 @@ if command -v docker >/dev/null 2>&1; then
 	# Verification uses small disk images so they can be staged on a laptop; the
 	# release build uses the real partition-layout.json.
 	export LAYOUT="${LAYOUT:-/work/image/os/partition-layout.verify.json}"
+	# Translate input paths under the repo to their container-visible form.
+	for v in RAUC_SIGNING_CERT RAUC_SIGNING_KEY RAUC_KEYRING VERIFY_UPDATE_BUNDLE \
+		VERIFY_INTEGRATION_GOOD VERIFY_INTEGRATION_BAD OBKA_SSH_AUTHORIZED_KEY; do
+		val="${!v:-}"
+		[ -n "$val" ] || continue
+		export "$v=$(printf '%s' "$val" | sed "s#^$project_root#/work#")"
+	done
 	# MAKE_DISK defaults to 1 so the disk images the harnesses boot exist.
 	"$here/build-env/run.sh" bash -lc "
 		set -e
@@ -54,6 +61,12 @@ if command -v docker >/dev/null 2>&1; then
 	mkdir -p "$out"
 	docker cp "$ctr":"$work_in_container/output/$defconfig/images/." "$out/"
 	docker rm "$ctr" >/dev/null
+	# Drop the large derived images from the cache tree; they are regenerated
+	# each build and would otherwise accumulate in the build volume.
+	docker run --rm -v "$volume":/cache "$image" sh -c \
+		"rm -rf $work_in_container/output/$defconfig/images/disk-*.img \
+			$work_in_container/output/$defconfig/images/.disk-work \
+			$work_in_container/output/$defconfig/images/.installer" >/dev/null 2>&1 || true
 else
 	export LAYOUT="${LAYOUT:-$project_root/image/os/partition-layout.verify.json}"
 	work="${OBAKE_WORK:-$project_root/image/.build/buildroot}"
