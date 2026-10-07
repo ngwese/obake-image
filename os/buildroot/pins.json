@@ -1,5 +1,5 @@
 {
-  "note": "Pinned inputs for the obake Buildroot image build. This file is the single source of truth for the Buildroot release and the realtime kernel source; build.sh verifies both hashes before building. Bumping either pin and rebuilding is the only way the base changes.",
+  "note": "Pinned inputs for the obake Buildroot image build. This file is the single source of truth for the Buildroot release, the realtime kernel source, and the vendored EFI stub; build.sh verifies the Buildroot and kernel hashes before building. Bumping a pin and rebuilding is the only way the base changes.",
   "buildroot": {
     "release": "2026.02.3",
     "url": "https://buildroot.org/downloads/buildroot-2026.02.3.tar.gz",
@@ -9,5 +9,12 @@
     "version": "7.2.9",
     "url": "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.9.tar.xz",
     "sha256": "b4c5dfbe51a364a6c7f03869200f88c8e1f77403539005f14b7fc6bc91b8d8ba"
+  },
+  "efi_stub": {
+    "note": "systemd EFI stub used to build the per-slot unified kernel images. Buildroot builds an aarch64 stub only for x86_64 targets, so the aarch64 stub is built once from the pinned systemd source and vendored under vendor/efi-stub/; the x86_64 stub is produced in-tree (BR2_PACKAGE_SYSTEMD_BOOT).",
+    "systemd_version": "258.7",
+    "linuxaa64": {
+      "sha256": "788214954b286e46826bac6c2d20ba1d294695d6f4fb52743ae3915bb2cf2e14"
+    }
   }
 }

@@ -10,6 +10,10 @@ OBAKE_HOST_CONFIG_SITE_METHOD = local
 OBAKE_HOST_CONFIG_LICENSE = Proprietary
 OBAKE_HOST_CONFIG_REDISTRIBUTE = NO
 
+# Provides the host `ukify` (and EFI tooling) used by post-image.sh to build the
+# per-slot unified kernel images.
+OBAKE_HOST_CONFIG_DEPENDENCIES = host-systemd
+
 define OBAKE_HOST_CONFIG_INSTALL_TARGET_CMDS
 	$(INSTALL) -d $(TARGET_DIR)/etc/udev/rules.d
 	$(INSTALL) -m 0644 $(@D)/udev/*.rules $(TARGET_DIR)/etc/udev/rules.d/

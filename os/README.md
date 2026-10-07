@@ -141,8 +141,17 @@ Images are emitted under `$OBAKE_WORK/output/<defconfig>/images/`:
   `rootfs.tar`;
 - `/etc/obake/kernel` and `/etc/obake/image-version` are baked into the rootfs.
 
-Per-slot unified kernel images and signed, versioned artifacts are added by
-later changes.
+The `board/obake/post-image.sh` hook then emits, from `partition-layout.json`:
+
+- `obake-<slot>.efi` — per-slot unified kernel images (`ukify`);
+- `root-<slot>.img` / `root-<slot>.tar` — per-slot root artifacts;
+- `disk-<slot>.img` — bootable disk for each active slot (`scripts/make-disk.sh`);
+- `VERSION`, `SHA256SUMS`, `image-manifest.json`, and, when `OBKA_SIGNING_KEY`
+  is set, `*.sig` (`scripts/sign.sh`).
+
+`ukify` comes from `host-systemd`. The x86_64 build gets its systemd EFI stub
+in-tree (`BR2_PACKAGE_SYSTEMD_BOOT`); the aarch64 stub is pinned in
+`buildroot/vendor/efi-stub/` (`pins.json`).
 
 ## Partition layout
 
