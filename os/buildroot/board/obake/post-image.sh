@@ -95,28 +95,29 @@ for slot in a b; do
 done
 
 if [ "${MAKE_DISK:-1}" = "1" ]; then
-	for slot in a b; do
-		log "assembling disk-$slot.img"
-		WORK="$binaries/.disk-work" USER_SIZE_MIB="${USER_SIZE_MIB:-2048}" \
-			"$scripts/make-disk.sh" "$slot" "$mkarch" "$binaries"
-	done
+	# One bootable disk; both root slots and their UKIs are on it, so a single
+	# image covers the active and inactive slots.
+	slot="${DISK_SLOT:-a}"
+	log "assembling disk-$slot.img"
+	WORK="$binaries/.disk-work" USER_SIZE_MIB="${USER_SIZE_MIB:-2048}" \
+		bash "$scripts/make-disk.sh" "$slot" "$mkarch" "$binaries"
 fi
 
 if [ "${MAKE_INSTALLER:-0}" = "1" ]; then
-	"$here/make-installer.sh" "$binaries"
+	bash "$here/make-installer.sh" "$binaries"
 fi
 
 # A signed update bundle for the inactive slot, when signing material is set.
 if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
 	log "building signed update bundle"
 	RAUC_SIGNING_CERT="$RAUC_SIGNING_CERT" RAUC_SIGNING_KEY="$RAUC_SIGNING_KEY" \
-		"$scripts/make-bundle.sh" b "$version" \
+		bash "$scripts/make-bundle.sh" b "$version" \
 		"$binaries/root-b.img" "$binaries/obake-b.efi" "$binaries"
 fi
 
 log "writing version, checksums, manifest and signatures"
 VERSION="$version" ARCH="$mkarch" SLOT=a \
 	OBKA_SIGNING_KEY="${OBKA_SIGNING_KEY:-}" \
-	"$scripts/sign.sh" "$binaries"
+	bash "$scripts/sign.sh" "$binaries"
 
 log "done: $arch version $version"

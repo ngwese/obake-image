@@ -13,7 +13,7 @@ out="${3:?usage: make-disk.sh <slot> <arch> <outdir>}"
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 os_dir="$(cd "$here/.." && pwd)"
-layout="$os_dir/partition-layout.json"
+layout="${LAYOUT:-$os_dir/partition-layout.json}"
 project_root="$(cd "$os_dir/.." && pwd)"
 
 user_mib="${USER_SIZE_MIB:-8192}"

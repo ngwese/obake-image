@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "note": "Verification-only partition layout. Same roles, labels, and GUIDs as partition-layout.json but smaller partitions so verification disk images stay small enough to stage on a laptop. Never used for release artifacts.",
+  "sectorSizeBytes": 512,
+  "alignmentMiB": 1,
+  "partitions": [
+    {
+      "order": 1,
+      "role": "esp",
+      "label": "OBKA_ESP",
+      "typeGuid": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+      "sizeMiB": 256,
+      "filesystem": "vfat",
+      "mount": "/boot/efi",
+      "content": "per-slot unified kernel images"
+    },
+    {
+      "order": 2,
+      "role": "root_a",
+      "label": "OBKA_ROOT_A",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 1536,
+      "filesystem": "ext4",
+      "mount": "/",
+      "content": "read-only rootfs slot A"
+    },
+    {
+      "order": 3,
+      "role": "root_b",
+      "label": "OBKA_ROOT_B",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 1536,
+      "filesystem": "ext4",
+      "mount": "/",
+      "content": "read-only rootfs slot B"
+    },
+    {
+      "order": 4,
+      "role": "persist",
+      "label": "OBKA_PERSIST",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 256,
+      "filesystem": "ext4",
+      "mount": "/persist",
+      "content": "etc overlay, persisted /var subset, machine seed"
+    },
+    {
+      "order": 5,
+      "role": "user",
+      "label": "OBKA_USER",
+      "typeGuid": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+      "sizeMiB": 256,
+      "grow": true,
+      "filesystem": "ext4",
+      "mount": "/home",
+      "content": "user data"
+    }
+  ]
+}

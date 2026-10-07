@@ -59,7 +59,7 @@ fi
 install -d "${target_dir}/persist" "${target_dir}/home" "${target_dir}/boot/efi"
 
 # Install verification guest checks and apply any BREAK fault injection.
-"${extroot}/board/obake/install-verify.sh" "$target_dir"
+bash "${extroot}/board/obake/install-verify.sh" "$target_dir"
 
 # Optional SSH public key for the obake user, provisioned into the image.
 if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then

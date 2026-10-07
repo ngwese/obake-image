@@ -1,26 +1,49 @@
 #!/usr/bin/env bash
+# Run a command inside the native obake Buildroot build environment.
+#
+# The container is native to the host architecture (arm64 on Apple silicon) and
+# cross-compiles the target; it has no QEMU/OVMF, so verification runs elsewhere
+# against the artifacts this container produces (see ../README.md).
+#
+# Usage: run.sh <command> [args...]
+#
+# A persistent volume caches the Buildroot work tree and the vendored download
+# cache so repeated builds are incremental and offline.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "$here/../.." && pwd)"
+project_root="$(cd "$here/../../.." && pwd)"
+image="${OBKA_BUILD_IMAGE:-obake-buildroot-env}"
+volume="${OBKA_BUILD_VOLUME:-obake-buildroot-cache}"
 
-image="${OBKA_BUILD_IMAGE:-obake-build-env}"
-platform="${OBKA_BUILD_PLATFORM:-linux/amd64}"
+docker build -q -t "$image" "$here" >/dev/null
 
-[ "$#" -ge 1 ] || { printf 'usage: run.sh <command> [args...]\n' >&2; exit 2; }
+docker volume create "$volume" >/dev/null
 
-docker build --platform "$platform" -t "$image" "$here"
+# Forward the build knobs the harnesses set.
+forward=()
+for v in VERIFY VERIFY_HEALTH VERIFY_PERSIST VERIFY_UPDATE VERIFY_INTEGRATION \
+	VERIFY_UPDATE_BUNDLE VERIFY_INTEGRATION_GOOD VERIFY_INTEGRATION_BAD \
+	BREAK MAKE_DISK MAKE_INSTALLER MAKE_BUNDLE IMAGE_TAG OBAKE_IMAGE_VERSION \
+	OBKA_IMAGE_VERSION OBKA_SSH_AUTHORIZED_KEY OBKA_SINGULARITY_STAGE \
+	OBKA_SINGULARITY_VERSION RAUC_SIGNING_CERT RAUC_SIGNING_KEY \
+	USER_SIZE_MIB SUITE MIRROR SECURITY_SUITE LAYOUT DISK_SLOT; do
+	[ -n "${!v:-}" ] && forward+=(-e "$v=${!v}")
+done
 
-# Pass the KVM device through when the host provides it (Linux/WSL2 with nested
-# virtualization) so the QEMU harnesses can use hardware acceleration.
-run_args=(--rm --platform "$platform" -v "$project_root:/work" -w /work)
-if [ -e /dev/kvm ]; then
-  run_args+=(--device /dev/kvm)
+seed_dl='
+if [ ! -d /cache/dl ] && [ -d /work/image/os/buildroot/vendor/dl ]; then
+  cp -a /work/image/os/buildroot/vendor/dl /cache/dl
 fi
+'
 
-# Keep the unpacked rootfs off the host bind mount: mmdebstrap must chown the
-# extracted tree to root, which shared filesystems (e.g. VirtioFS on macOS)
-# reject. The final artifacts are still written to the mounted dist/ tree.
-run_args+=(--env "WORK=${OBKA_WORK:-/var/tmp/obake-build}")
-
-docker run "${run_args[@]}" "$image" "$@"
+exec docker run --rm \
+	-v "$project_root":/work \
+	-v "$volume":/cache \
+	-w /work \
+	"${forward[@]+"${forward[@]}"}" \
+	-e "OBAKE_WORK=${OBAKE_WORK:-/cache/buildroot}" \
+	-e "DL_DIR=${DL_DIR:-/cache/dl}" \
+	-e FORCE_UNSAFE_CONFIGURE=1 \
+	"$image" \
+	bash -lc "${seed_dl} exec \"\$@\"" _ "$@"
