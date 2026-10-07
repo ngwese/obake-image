@@ -74,6 +74,10 @@ rm -f "$target_dir"/etc/systemd/system/multi-user.target.wants/obake-verify.serv
 
 [ "$verify" = "1" ] || exit 0
 
+# Remove any embedded bundles from a previous build in this output tree; each
+# verification image embeds only what its own run sets.
+rm -f "$target_dir"/opt/obake/*.raucb
+
 install -d "$target_dir/usr/libexec/obake"
 
 if [ "${VERIFY_HEALTH:-0}" = "1" ]; then
