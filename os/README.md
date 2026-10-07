@@ -36,10 +36,20 @@ The packages the shapes build and run on form a separate **runtime layer**, a
 `BR2_EXTERNAL` meta-package `obake-runtime` (`package/obake-runtime/Config.in`)
 whose `select`s name the layer once so a defconfig reuses it. It currently
 selects `obake-jack2`, `alsa-utils`, `usb-modeswitch`, `nftables`, `avahi`
-(+ daemon), `nss-mdns`, `libcurl` (+ the `curl` binary), `iproute2`, `sudo`, and
-`git`, and will select the Singularity runtime. Enable it with
-`BR2_PACKAGE_OBAKE_RUNTIME=y`; `obake-jack2` additionally needs
-`BR2_TOOLCHAIN_BUILDROOT_CXX=y` for target C++/libstdc++.
+(+ daemon), `nss-mdns`, `libcurl` (+ the `curl` binary), `iproute2`, `sudo`,
+`git`, and `obake-container`. Enable it with `BR2_PACKAGE_OBAKE_RUNTIME=y`;
+`obake-jack2` additionally needs `BR2_TOOLCHAIN_BUILDROOT_CXX=y` for target
+C++/libstdc++.
+
+The container runtime is its own meta-package, `obake-container`
+(`package/obake-container/`), which selects `package/singularity`
+(SingularityCE, built from source via its `mconfig`/`makeit` build and the
+Buildroot Go toolchain). It is pinned to **4.5.1** because 4.6.0 requires Go
+>= 1.26.8 and Buildroot ships 1.26.3; revisit on a Go bump. Keeping it a
+separate meta-package groups its large dependency tree (Go, gnupg2/gpgme,
+cryptsetup, FUSE3, seccomp, squashfs tools) apart from the audio/network
+runtime. Future changes add further meta-packages (developer tooling,
+audio-over-IP) the same way.
 
 `obake-jack2` (`package/obake-jack2/`) is an external recipe that builds jack2
 with `--alsa --classic --dbus`, installing both `jackd` and `jackdbus`. It

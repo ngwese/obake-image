@@ -1,0 +1,12 @@
+config BR2_PACKAGE_OBAKE_CONTAINER
+	bool "obake container runtime layer"
+	select BR2_PACKAGE_SINGULARITY
+	help
+	  The obake container runtime layer: the SingularityCE runtime that
+	  the shapes execute as SIF images, together with its (considerable)
+	  dependency set. This keeps the container runtime a single named
+	  meta-package, separate from the audio/network runtime that
+	  obake-runtime selects.
+
+	  Future changes add further meta-packages (developer tooling,
+	  audio-over-IP) the same way.
