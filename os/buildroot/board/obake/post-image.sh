@@ -92,11 +92,17 @@ for slot in a b; do
 	cp -f "$binaries/rootfs.tar" "$binaries/root-$slot.tar"
 done
 
-for slot in a b; do
-	log "assembling disk-$slot.img"
-	WORK="$binaries/.disk-work" USER_SIZE_MIB="${USER_SIZE_MIB:-2048}" \
-		"$scripts/make-disk.sh" "$slot" "$mkarch" "$binaries"
-done
+if [ "${MAKE_DISK:-1}" = "1" ]; then
+	for slot in a b; do
+		log "assembling disk-$slot.img"
+		WORK="$binaries/.disk-work" USER_SIZE_MIB="${USER_SIZE_MIB:-2048}" \
+			"$scripts/make-disk.sh" "$slot" "$mkarch" "$binaries"
+	done
+fi
+
+if [ "${MAKE_INSTALLER:-0}" = "1" ]; then
+	"$here/make-installer.sh" "$binaries"
+fi
 
 log "writing version, checksums, manifest and signatures"
 VERSION="$version" ARCH="$mkarch" SLOT=a \

@@ -14,6 +14,7 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "$here/.." && pwd)"
 layout="${LAYOUT:-$project_root/os/partition-layout.json}"
+layout_env="${LAYOUT_ENV:-${layout%.json}.env}"
 images_dir="${IMAGES_DIR:-$project_root/dist/os/amd64}"
 active_slot="${ACTIVE_SLOT:-a}"
 target_disk="${TARGET_DISK:-}"
@@ -23,17 +24,36 @@ hostname="${OBKA_HOSTNAME:-obake}"
 log() { printf '[install] %s\n' "$*" >&2; }
 die() { printf '[install] error: %s\n' "$*" >&2; exit 1; }
 
-layout_rows() {
-  python3 - "$layout" <<'PY'
+# The build emits partition-layout.env next to partition-layout.json so the
+# installer needs no Python on the target. Fall back to parsing the JSON with
+# python3 when the env file is absent (development hosts).
+if [ -f "$layout_env" ]; then
+	# shellcheck disable=SC1090
+	. "$layout_env"
+	layout_rows() {
+		local role order label guid size grow
+		for role in $LAYOUT_ROLES; do
+			eval "order=\$ROLE_${role}_ORDER label=\$ROLE_${role}_LABEL guid=\$ROLE_${role}_GUID size=\$ROLE_${role}_SIZE grow=\$ROLE_${role}_GROW"
+			printf '%s %s %s %s %s %s\n' "$order" "$role" "$label" "$guid" "$size" "$grow"
+		done
+	}
+	layout_field() { # <role> <field>
+		eval "printf '%s\n' \"\${ROLE_${1}_$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')}\""
+	}
+	order_of() {
+		eval "printf '%s\n' \"\${ROLE_${1}_ORDER}\""
+	}
+else
+	layout_rows() {
+		python3 - "$layout" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 for p in data["partitions"]:
     print(p["order"], p["role"], p["label"], p["typeGuid"], p["sizeMiB"], p.get("grow", False))
 PY
-}
-
-layout_field() {
-  python3 - "$layout" "$1" "$2" <<'PY'
+	}
+	layout_field() {
+		python3 - "$layout" "$1" "$2" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 for p in data["partitions"]:
@@ -43,10 +63,9 @@ for p in data["partitions"]:
 else:
     raise SystemExit(f"unknown role: {sys.argv[2]}")
 PY
-}
-
-order_of() {
-  python3 - "$layout" "$1" <<'PY'
+	}
+	order_of() {
+		python3 - "$layout" "$1" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 for p in data["partitions"]:
@@ -56,7 +75,8 @@ for p in data["partitions"]:
 else:
     raise SystemExit(f"unknown role: {sys.argv[2]}")
 PY
-}
+	}
+fi
 
 disk=""
 partdev() { # partdev <order> -> /dev/<target partition>
@@ -115,8 +135,11 @@ partition_disk() {
 
   while read -r order role label guid size grow; do
     [ "$keep_user" = 1 ] && [ "$role" = user ] && continue
-    local end
-    if [ "$grow" = "True" ]; then end="0"; else end="+${size}M"; fi
+	local end
+		case "$grow" in
+		[Tt]rue | 1) end="0" ;;
+		*) end="+${size}M" ;;
+		esac
     sgdisk --new="${order}:0:${end}" \
       --typecode="${order}:${guid}" \
       --change-name="${order}:${label}" "$disk" >/dev/null
