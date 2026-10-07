@@ -2,134 +2,82 @@
 
 Reproducible, host-agnostic build environment and headless QEMU checks.
 
+Build and verification are **decoupled**: the build emits a directory of
+artifacts and verification consumes it. The build host never runs emulated
+guests and needs no QEMU or OVMF.
+
+## Architecture
+
+The target architecture is chosen by `OBKA_ARCH` — `aarch64` by default on
+arm64 hosts, `x86_64` otherwise. On a macOS arm64 host the aarch64 image is the
+iteration target, booted under QEMU's `hvf` accelerator as a proxy for the real
+arm64 board; x86_64 is built the same way and verified where it can run (an
+x86_64 Linux/WSL host with KVM, or software emulation).
+
 ## Build environment
 
-`build-env/` is a Debian trixie container providing `mmdebstrap`, `ukify`,
-`rauc`, QEMU, and OVMF, and building Singularity CE from source. It is pinned so
-the same commands run on macOS arm64 and Windows 11 WSL x86_64.
-
-The container is built and run as `linux/amd64` so x86_64 images build natively
-inside it on both hosts (on macOS arm64 the container runs under emulation).
-
-```
-verification/build-env/run.sh os/build.sh
-```
-
-`run.sh` builds the container image, then runs the given command inside it with
-the repository mounted at `/work`. The unpacked rootfs is kept in a
-container-local work directory (`WORK`, default `/var/tmp/obake-build`): the
-build must `chown` the tree to root, which the macOS shared filesystem
-(VirtioFS) rejects. Only the final artifacts are written to the mounted
-`dist/` tree.
-
-Environment overrides:
-
-| Variable              | Default           | Meaning                        |
-|-----------------------|-------------------|--------------------------------|
-| `OBKA_BUILD_IMAGE`    | `obake-build-env` | container image tag            |
-| `OBKA_BUILD_PLATFORM` | `linux/amd64`     | container platform             |
-| `OBKA_WORK`           | `/var/tmp/obake-build` | container-local work dir  |
-
-macOS arm64 prerequisite: Docker Desktop's bundled `qemu-x86_64` user emulator
-is too old to run the Go toolchain used to build Singularity CE from source
-(it dies with `internal compiler error`/segfaults). Register a current
-emulator once per Docker VM boot:
+`build-env/` is a native (host-architecture) Debian container with the Buildroot
+build dependencies and the disk tools (`gdisk`/`sgdisk`, `dosfstools` `mkfs.fat`,
+`mtools`, `parted`, `e2fsprogs`, `openssl`, `rauc`, `squashfs-tools`). It does
+**not** include QEMU or OVMF. Buildroot cross-compiles the target, so one host
+builds any target without emulation.
 
 ```
-docker run --privileged --rm tonistiigi/binfmt --install amd64
+image/verification/build.sh [arch] [outdir]
 ```
 
-The build itself then needs no host-specific configuration.
+`build.sh` builds in the container and stages the artifact directory to
+`dist/os/<arch>` (or `outdir`). Build knobs (`VERIFY*`, `BREAK`, `MAKE_DISK`,
+`MAKE_INSTALLER`, `IMAGE_TAG`, `RAUC_SIGNING_*`, `RAUC_KEYRING`, ...) are
+forwarded. Verification uses a small partition layout
+(`image/os/partition-layout.verify.json`) so disk images stay storable; the
+release build uses `image/os/partition-layout.json`.
 
-## Hardware acceleration
-
-The QEMU harnesses auto-detect the best accelerator via `qemu/qemu-env.sh`:
-
-| Host                    | Accelerator   | CPU    | Disk I/O                 |
-|-------------------------|---------------|--------|--------------------------|
-| Linux / WSL2 (nested)   | `kvm`         | `host` | `cache=none,aio=native`  |
-| Windows-native QEMU     | `whpx`/`hax`  | `host` | `cache=none,aio=threads` |
-| macOS arm64 (native)    | `tcg`         | `max`  | `cache=none,aio=threads` |
-| none available          | `tcg`         | `max`  | `cache=none,aio=threads` |
-
-On Windows 11 WSL2, enable the "Virtual Machine Platform"/nested virtualization
-so `/dev/kvm` exists; `build-env/run.sh` passes it to the container with
-`--device /dev/kvm` automatically. All block devices are raw images attached
-with `if=virtio`, the SMP topology is explicit
-(`cores=,threads=1,sockets=1`), and the host CPU model is passed through
-(`-cpu host`). The harnesses are headless (`-nographic`, serial on stdio), so no
-GPU/QXL/SPICE device is configured.
-
-macOS arm64 has no KVM. Run the harnesses on the host (not inside the
-container) so QEMU executes natively; the bundled Homebrew QEMU + EDK2 firmware
-are auto-detected by `qemu-env.sh`. Running `qemu-system-x86_64` inside the
-emulated `linux/amd64` container is possible but far too slow to reach a login
-prompt before systemd's device timeout (and cannot allocate a 2 GiB guest), so
-it is not used for gating.
-
-```
-verification/qemu/boot-test.sh dist/os/amd64/disk-a.img
-```
-
-Override with `OBKA_QEMU_ACCEL`, `OBKA_QEMU_CPU`, `OBKA_QEMU_CORES`,
-`OBKA_QEMU_MEM`, `OBKA_QEMU_CACHE`, or `OBKA_QEMU_AIO` (e.g.
-`OBKA_QEMU_ACCEL=tcg` to force software emulation, or `OBKA_QEMU_AIO=io_uring`
-where supported). Inside the container, set these within the container command
-(`run.sh` does not forward the host environment).
+A Linux host with the build dependencies can also run
+`image/os/buildroot/build.sh` directly; `build.sh` detects Docker and otherwise
+builds on the host.
 
 ## QEMU checks
 
-All scripts are headless (`-nographic`, serial on stdio) and report a
-deterministic pass or fail by matching a marker in the captured serial log.
+All harnesses are headless (serial on stdio) and report a deterministic pass or
+fail. They accept an optional architecture argument and use the host's fastest
+accelerator (`hvf` on macOS, `kvm` on Linux, `tcg` otherwise).
 
-- `qemu/boot-test.sh <disk-image> [marker]` — boot a disk under OVMF and assert
-  the marker appears. Default marker is `login:`.
-- `qemu/install-test.sh <installer-image> [disk-size]` — create an empty virtual
-  disk, run the installer, wait for `OBKA_INSTALL_DONE`, then boot the installed
-  disk.
-- `qemu/install-interactive-test.sh [arch]` — boot the installer with no
-  preselected disk and drive the serial console to select and confirm the
-  target.
-- `qemu/reinstall-test.sh [arch]` — install, write a marker into the user
-  partition, reinstall, and assert the user partition is preserved.
-- `qemu/verify-test.sh [arch]` — build a good image and one broken per behavior,
-  boot each, and assert the functional checks pass or fail as expected.
-- `qemu/update-test.sh [good|broken|https|usb] [arch]` — build a signed RAUC
-  bundle and a verification image carrying it, then boot twice with persistent
-  EFI variables: phase 1 installs the bundle to the inactive slot and powers
-  off, phase 2 asserts the update activated and reports the installed
-  version/kernel. `broken` signs with an untrusted CA and asserts rejection;
-  `https` fetches from `update-server.sh`; `usb` asserts USB is preferred.
-- `qemu/health-test.sh [pass|revert] [arch]` — install a bundle and assert the
-  health gate marks a healthy slot good, or reverts a persistently unhealthy one
-  and restores its configuration.
-- `qemu/persist-test.sh [arch]` — write markers under `/etc`, `/var`, and
-  `/home`, then reboot and switch slots to assert the writable contract.
-- `qemu/ssh-test.sh [arch]` — boot with an injected key and verify SSH access
-  and the directory contract.
-- `qemu/integration-test.sh [arch]` — full install → customize → update → reboot
-  → forced failed update → revert on a target disk, asserting the writable
-  contract and an unchanged user partition.
-- `qemu/dev-vm.sh` — developer helper: build with an SSH key, install to a
-  virtual disk, and boot it with SSH forwarded for inspection. See
-  `../docs/dev-qemu.md`.
-- `update-server.sh <bundle-dir> [port]` — development update service for a
-  build host (HTTP, or HTTPS with `UPDATE_SERVER_TLS=1`).
-- `build-singularity-stage.sh <version> <sha256> <dir>` — build a staged
-  Singularity CE tree for the runtime layer (e.g. to ship a newer version in a
-  bundle).
+```
+image/verification/qemu/boot-test.sh dist/os/aarch64/disk-a.img OBKA_VERIFY_PASS
+```
 
-Common overrides: `BOOT_TIMEOUT`, `INSTALL_TIMEOUT`, `BOOT_MARKER`,
-`INSTALL_MARKER`, `OVMF_CODE`, `OVMF_VARS`, and the `*_LOG` paths.
+- `boot-test.sh <disk> [marker]` — boot under UEFI and assert a serial marker
+  (default `OBKA_BOOT_OK`; a `VERIFY=1` image prints `OBKA_VERIFY_PASS`).
+- `persist-test.sh [arch]` — writable-contract persistence across reboot and
+  slot switch.
+- `verify-test.sh [arch]` — the guest functional checks, plus one deliberately
+  broken image per `BREAK` value (`ro`/`etc`/`var`/`user`) whose matching check
+  must fail.
+- `install-test.sh [installer] [size]` — install to a blank disk, then boot it.
+- `reinstall-test.sh [arch]` — reinstall and assert the user partition is kept.
+- `install-interactive-test.sh [arch]` — drive the console to select and confirm
+  the target disk.
+- `update-test.sh [good|broken] [arch]` — two-phase RAUC update apply/activate,
+  or rejection of an untrusted bundle.
+- `health-test.sh [pass|revert] [arch]` — health gate marks a healthy slot good,
+  or reverts a persistently unhealthy update and restores configuration.
+- `dev-vm.sh` — developer helper: build with an SSH key, install to a virtual
+  disk, boot with SSH forwarded. See `../docs/dev-qemu.md`.
+- `update-server.sh <bundle-dir> [port]` — development update service.
+
+Common overrides: `OBKA_ARCH`, `OBKA_REBUILD=1`, `OBKA_ARTIFACTS`,
+`OVMF_CODE`/`OVMF_VARS`, `BOOT_TIMEOUT`, `INSTALL_TIMEOUT`, and the `*_LOG`
+paths.
 
 ### Functional checks
 
 `guest/obake-verify.sh` runs inside a verification image (`VERIFY=1`) and checks
 the writable contract: read-only root, the persistent `/etc` overlay, the `/var`
 tmpfs with its persisted subset, the writable user partition, the pinned
-Singularity CE runtime, and the realtime kernel. It prints one
-`OBKA_CHECK <name>=pass|fail` line per check and `OBKA_VERIFY_PASS` or
-`OBKA_VERIFY_FAIL`, then powers the machine off.
+Singularity CE runtime, the realtime kernel, and the RAUC/update wiring. It
+prints one `OBKA_CHECK <name>=pass|fail` line per check and `OBKA_VERIFY_PASS`
+or `OBKA_VERIFY_FAIL`.
 
 `VERIFY=1` installs the checks; `BREAK=<behavior>` injects a fault so the suite
 can prove the matching check fails:
@@ -144,25 +92,8 @@ can prove the matching check fails:
 
 ## Reproducibility
 
-Reproducibility across the two development hosts is tracked by per-platform
-artifact digests. `verification/reproducibility.sh <platform>` builds the image
-and records the digests of the reproducible artifacts — the rootfs tarballs
-(`root-<slot>.tar`) and the per-slot UKIs — under `reproducibility/`:
-
-```
-verification/build-env/run.sh verification/reproducibility.sh wsl-x86_64
-```
-
-The ext4 root images (`root-<slot>.img`) are derived boot artifacts and are not
-byte-for-byte reproducible because `mke2fs -d` is ordered by directory iteration
-order; the tarball is the canonical reproducible layer artifact. The WSL x86_64
-record is `reproducibility/wsl-x86_64.sha256`; the macOS arm64 record is
-`reproducibility/macos-arm64.sha256` (task 1.2a), and task 1.2c compares them.
-
-Note: the base suite is pinned only by name against the rolling
-`deb.debian.org` mirror, so artifacts drift as Debian trixie is updated. The
-committed `wsl-x86_64.sha256` predates later build-input changes (e.g. the
-`systemd-resolved`/avahi/git tuning additions) and no longer matches a current
-build; a cross-host comparison needs both records regenerated from the same
-package set (ideally a pinned snapshot). A same-revision macOS rebuild is
-byte-identical, so the build is deterministic per host.
+The base is pinned by the Buildroot release and per-package versions and hashes
+(`image/os/buildroot/pins.json`), so unchanged pins select the same package,
+kernel, and runtime versions on any host. The canonical reproducible artifact is
+the rootfs archive (`root-<slot>.tar`); the ext4 image is a derived boot
+artifact. `verification/reproducibility.sh <platform>` records artifact digests.

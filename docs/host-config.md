@@ -3,6 +3,12 @@
 The writable contract for an obake host: the root is immutable, and every
 allowed customization lives in a named, persistent location.
 
+The contract is provided by the Buildroot image: the initramfs mounts the root
+slot by label and overlays `/etc` from the persist partition before handing off
+to systemd; `fstab` mounts `/var` as tmpfs with its persisted subset bound from
+persist, the user partition at `/home`, and the ESP at `/boot/efi`. Verified
+headlessly by `verification/qemu/persist-test.sh` and `verify-test.sh`.
+
 ## Read-only root
 
 The operating system root is mounted read-only (`ro` on the kernel command

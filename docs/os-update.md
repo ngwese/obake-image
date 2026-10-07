@@ -2,6 +2,13 @@
 
 User-initiated, signed, A/B operating system updates for an obake host.
 
+The update system is provided by the Buildroot image: RAUC (`rauc.service`),
+`obake-efi-entries.service`, the health gate, and the `obake-update` client run
+on the same slots and bundle format as before. `rauc/system.conf` matches slots
+through the `efi` backend. Verified headlessly by
+`verification/qemu/update-test.sh` (apply/activate and untrusted-bundle
+rejection) and `health-test.sh` (mark-good and revert).
+
 ## Bundle format
 
 Updates are RAUC bundles. A bundle carries the inactive root slot's filesystem

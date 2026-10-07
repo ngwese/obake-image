@@ -4,6 +4,13 @@ Headless installer for an obake host. Runs over a serial console or a text
 console with an attached keyboard and monitor; it never requires a graphical
 interface.
 
+The installer medium is built by the Buildroot build
+(`image/os/buildroot/board/obake/make-installer.sh`, `MAKE_INSTALLER=1`) and
+bundles the per-slot images and UKIs. `install.sh` needs no Python on the target
+(it sources the generated `partition-layout.env`). Verified headlessly by
+`verification/qemu/install-test.sh`, `install-interactive-test.sh`, and
+`reinstall-test.sh`.
+
 ## Flow
 
 1. Enumerate candidate disks and prompt for a destination.
