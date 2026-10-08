@@ -5,9 +5,13 @@ set -euo pipefail
 # install, install to a virtual disk under KVM, then boot it with SSH forwarded
 # so you can log in and inspect the result.
 #
-# Run inside the build environment with the SSH port published, e.g.:
+# Run inside the verification environment (which provides QEMU, OVMF, and the
+# Docker socket the build wrapper uses), with the SSH port published, e.g.:
 #   docker run --rm -it --device /dev/kvm -p 2222:2222 \
-#     -v "$PWD:/work" -w /work obake-build-env verification/qemu/dev-vm.sh
+#     -v "$PWD:$PWD" -w "$PWD" \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
+#     -v /usr/bin/docker:/usr/local/bin/docker:ro \
+#     obake-verify-env image/verification/qemu/dev-vm.sh
 #
 # Then from the host:  ssh -i dist/dev/id -p 2222 obake@127.0.0.1
 #
@@ -17,19 +21,22 @@ set -euo pipefail
 #   -h, --help      show this help
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$here/qemu-env.sh"
+. "$here/lib.sh"
 
 verbose=0
 usage() {
   cat >&2 <<'EOF'
 Usage: dev-vm.sh [-v|--verbose] [-h|--help]
 
-Builds obake with an SSH key baked into the install, installs to a virtual disk
-under KVM, then boots it with SSH forwarded (port 2222 by default).
+Builds the OS + installer with an SSH key baked into the install, installs to a
+virtual disk under KVM, then boots it with SSH forwarded (port 2222 by default).
 
-Run inside the build environment with the port published:
+Run inside the verification environment with the port published:
   docker run --rm -it --device /dev/kvm -p 2222:2222 \
-    -v "$PWD:/work" -w /work obake-build-env verification/qemu/dev-vm.sh -v
+    -v "$PWD:$PWD" -w "$PWD" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /usr/bin/docker:/usr/local/bin/docker:ro \
+    obake-verify-env image/verification/qemu/dev-vm.sh -v
 
 Then from the host:
   ssh -i dist/dev/id -p 2222 obake@127.0.0.1
@@ -72,17 +79,13 @@ run_capture() { # run_capture <logfile> <command...>
   fi
 }
 
-project_root="$(cd "$here/../.." && pwd)"
-arch="${ARCH:-amd64}"
+arch="$OBKA_ARCH"
 work="${DEV_VM_DIR:-$project_root/dist/dev}"
 port="${SSH_PORT:-2222}"
 install_timeout="${INSTALL_TIMEOUT:-900}"
 key="$work/id"
 target="$work/target.img"
 installer="$project_root/dist/os/$arch/installer.img"
-
-ovmf_code="${OVMF_CODE:-/usr/share/OVMF/OVMF_CODE_4M.fd}"
-ovmf_vars="${OVMF_VARS:-/usr/share/OVMF/OVMF_VARS_4M.fd}"
 
 mkdir -p "$work"
 vlog "work dir:    $work"
@@ -96,9 +99,9 @@ if [ ! -f "$key" ]; then
 fi
 
 log "building OS artifacts and installer (accel=$OBKA_QEMU_ACCEL_NAME)"
-vlog "OBKA_SSH_AUTHORIZED_KEY=$key.pub MAKE_INSTALLER=1 os/build.sh"
+vlog "OBKA_SSH_AUTHORIZED_KEY=$key.pub MAKE_INSTALLER=1 image/verification/build.sh $arch"
 run_capture "$work/build.log" env OBKA_SSH_AUTHORIZED_KEY="$key.pub" \
-  MAKE_INSTALLER=1 ARCH="$arch" "$project_root/os/build.sh"
+  MAKE_INSTALLER=1 bash "$project_root/image/verification/build.sh" "$arch"
 vlog "installer:   $installer"
 
 if [ ! -f "$target" ]; then
@@ -107,13 +110,14 @@ if [ ! -f "$target" ]; then
 fi
 
 install_vars="$work/vars-install.fd"
-cp "$ovmf_vars" "$install_vars"
+cp "$OVMF_VARS" "$install_vars"
 log "installing to $target"
 vlog "install OVMF vars: $install_vars"
-run_capture "$work/install.log" timeout "$install_timeout" qemu-system-x86_64 \
-  -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
+# shellcheck disable=SC2086
+run_capture "$work/install.log" timeout "$install_timeout" "$OBKA_QEMU_BIN" \
+  $OBKA_QEMU_MACHINE_ARGS -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
   -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
-  -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
+  $OBKA_QEMU_FW_ARGS \
   -drive if=pflash,format=raw,file="$install_vars" \
   -drive if=none,id=inst,format=raw,file="$installer","$OBKA_QEMU_DISK_OPTS" \
   -device virtio-blk-pci,drive=inst,bootindex=0 \
@@ -126,14 +130,15 @@ fi
 vlog "install log: $work/install.log"
 
 boot_vars="$work/vars.fd"
-cp "$ovmf_vars" "$boot_vars"
+cp "$OVMF_VARS" "$boot_vars"
 log "installed; booting with SSH forwarded"
 printf '\n[dev-vm]   ssh -i %s -p %s -o StrictHostKeyChecking=no obake@127.0.0.1\n\n' \
   "$key" "$port" >&2
-exec qemu-system-x86_64 \
-  -machine q35 -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
+# shellcheck disable=SC2086
+exec "$OBKA_QEMU_BIN" \
+  $OBKA_QEMU_MACHINE_ARGS -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
   -m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
-  -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
+  $OBKA_QEMU_FW_ARGS \
   -drive if=pflash,format=raw,file="$boot_vars" \
   -drive file="$target",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
   -netdev "user,id=n0,hostfwd=tcp:0.0.0.0:${port}-:22" \
