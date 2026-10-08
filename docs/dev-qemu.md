@@ -5,11 +5,14 @@ log in over SSH to inspect the result.
 
 ## Prerequisites
 
-- Docker, and the project's build environment:
-  `verification/build-env/run.sh` (builds `obake-build-env`).
+- Docker, and the project's build and verification environments:
+  `image/verification/build-env/run.sh` (builds the Buildroot artifacts) and
+  `image/verification/verify-env/run.sh` (provides QEMU/OVMF on hosts without a
+  system QEMU). The build wrapper selects the build container automatically.
 - Hardware acceleration on the host: `/dev/kvm` (Linux, or Windows 11 WSL2 with
   nested virtualization / "Virtual Machine Platform" enabled). The harnesses
-  auto-detect `kvm` → `whpx`/`hax` → `tcg`; see `verification/README.md`.
+  auto-detect `kvm` → `hvf` → `whpx`/`hax` → `tcg`; see
+  `image/verification/README.md`.
 - An SSH key pair for the `obake` user. You can generate one with
   `ssh-keygen -t ed25519 -f dist/dev/id`.
 
@@ -24,7 +27,10 @@ disk, then boots it with SSH forwarded on port 2222:
 
 ```sh
 docker run --rm -it --device /dev/kvm -p 2222:2222 \
-  -v "$PWD:/work" -w /work obake-build-env verification/qemu/dev-vm.sh
+  -v "$PWD:$PWD" -w "$PWD" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /usr/bin/docker:/usr/local/bin/docker:ro \
+  obake-verify-env image/verification/qemu/dev-vm.sh
 ```
 
 Pass `-v` / `--verbose` to trace commands and stream the build and install
@@ -42,25 +48,30 @@ The helper writes everything under `dist/dev/` (`build.log`, `install.log`,
 
 ## Manual steps
 
-Start an interactive build-environment container with KVM and the SSH port
+Start an interactive verification container with KVM and the SSH port
 published:
 
 ```sh
 docker run --rm -it --device /dev/kvm -p 2222:2222 \
-  -v "$PWD:/work" -w /work obake-build-env bash
+  -v "$PWD:$PWD" -w "$PWD" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /usr/bin/docker:/usr/local/bin/docker:ro \
+  obake-verify-env bash
 ```
 
-Everything below runs inside that container.
+Everything below runs inside that container. The build wrapper uses the
+Buildroot build container through the mounted Docker socket.
 
 ### 1. Key and build (key baked into the install)
 
 ```sh
 mkdir -p dist/dev
 ssh-keygen -q -t ed25519 -N '' -f dist/dev/id
-OBKA_SSH_AUTHORIZED_KEY=/work/dist/dev/id.pub MAKE_INSTALLER=1 os/build.sh
+OBKA_SSH_AUTHORIZED_KEY="$PWD/dist/dev/id.pub" MAKE_INSTALLER=1 \
+  image/verification/build.sh x86_64
 ```
 
-This produces `dist/os/amd64/installer.img` plus the per-slot artifacts. The
+This produces `dist/os/x86_64/installer.img` plus the per-slot artifacts. The
 public key is carried in the installer medium and seeded onto the installed
 host's persist partition by `install.sh`.
 
@@ -81,7 +92,7 @@ qemu-system-x86_64 -machine q35 -accel kvm -cpu host -m 2048 \
   -smp cores=4,threads=1,sockets=1 -no-reboot \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
   -drive if=pflash,format=raw,file=dist/dev/vars-install.fd \
-  -drive if=none,id=inst,format=raw,file=dist/os/amd64/installer.img,cache=none,aio=native \
+  -drive if=none,id=inst,format=raw,file=dist/os/x86_64/installer.img,cache=none,aio=native \
   -device virtio-blk-pci,drive=inst,bootindex=0 \
   -drive if=none,id=tgt,format=raw,file=dist/dev/target.img,cache=none,aio=native \
   -device virtio-blk-pci,drive=tgt,bootindex=1 \

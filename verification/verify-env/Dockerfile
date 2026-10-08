@@ -14,6 +14,7 @@ RUN apt-get update \
         curl \
         python3 \
         openssl \
+        openssh-client \
         qemu-system-x86 \
         qemu-system-arm \
         qemu-utils \

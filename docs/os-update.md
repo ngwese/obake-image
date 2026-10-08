@@ -74,24 +74,32 @@ state. Reboot to complete the rollback.
 Generate development signing material (or use production keys held offline):
 
 ```sh
-os/scripts/make-signing-material.sh .build/signing
+image/os/scripts/make-signing-material.sh .build/signing
 ```
 
-Build the per-slot artifacts and a signed bundle:
+Build the per-slot artifacts and a signed bundle. The build emits the bundle
+itself when signing material is set:
 
 ```sh
-os/build.sh
 RAUC_SIGNING_CERT=.build/signing/signing.cert.pem \
 RAUC_SIGNING_KEY=.build/signing/signing.key \
-  os/scripts/make-bundle.sh b 1.4.0 \
-  dist/os/amd64/root-b.img dist/os/amd64/obake-b.efi dist/bundles
+  image/verification/build.sh x86_64
+```
+
+Or bundle an already-built slot manually with `image/os/scripts/make-bundle.sh`:
+
+```sh
+RAUC_SIGNING_CERT=.build/signing/signing.cert.pem \
+RAUC_SIGNING_KEY=.build/signing/signing.key \
+  image/os/scripts/make-bundle.sh b 1.4.0 \
+  dist/os/x86_64/root-b.img dist/os/x86_64/obake-b.efi dist/bundles
 ```
 
 The CA certificate (`.build/signing/ca.cert.pem`) is the keyring baked into the
 image via `RAUC_KEYRING` at image build time; the release certificate signs the
 bundles. Bumping the pinned kernel or Singularity CE version in
-`os/manifest.json`, rebuilding, and bundling ships the new versions in an
-update (verified by the harness reporting the installed kernel/version).
+`image/os/buildroot/pins.json`, rebuilding, and bundling ships the new versions
+in an update (verified by the harness reporting the installed kernel/version).
 
 ## Development update service
 

@@ -8,7 +8,7 @@ The installer medium is built by the Buildroot build
 (`image/os/buildroot/board/obake/make-installer.sh`, `MAKE_INSTALLER=1`) and
 bundles the per-slot images and UKIs. `install.sh` needs no Python on the target
 (it sources the generated `partition-layout.env`). Verified headlessly by
-`verification/qemu/install-test.sh`, `install-interactive-test.sh`, and
+`image/verification/qemu/install-test.sh`, `install-interactive-test.sh`, and
 `reinstall-test.sh`.
 
 ## Flow
@@ -42,8 +42,9 @@ reformat the user partition as well.
 
 ## Installer image
 
-`os/build.sh` emits the installer medium as `dist/os/<arch>/installer.img` when
-`MAKE_INSTALLER=1` is set. It bundles the built per-slot images under
+`image/verification/build.sh` emits the installer medium at
+`dist/os/<arch>/installer.img` when `MAKE_INSTALLER=1` is set. It bundles the
+built per-slot images under
 `/opt/obake/images` and runs `install.sh` at boot via
 `obake-installer.service`. The medium uses its own partition labels
 (`OBKA_INSTALLER`, `OBKA_INST`) and its own UKI, so a disk-based installer
@@ -53,13 +54,13 @@ the second disk (`/dev/vdb`) and powers off when finished; set
 with:
 
 ```
-verification/build-env/run.sh bash -c 'MAKE_INSTALLER=1 os/build.sh'
-verification/build-env/run.sh verification/qemu/install-test.sh dist/os/amd64/installer.img
+MAKE_INSTALLER=1 image/verification/build.sh x86_64
+image/verification/qemu/install-test.sh dist/os/x86_64/installer.img
 ```
 
 The interactive and reinstall flows are verified by
-`verification/qemu/install-interactive-test.sh` and
-`verification/qemu/reinstall-test.sh`.
+`image/verification/qemu/install-interactive-test.sh` and
+`image/verification/qemu/reinstall-test.sh`.
 
 ## Usage
 
@@ -72,7 +73,7 @@ Overrides:
 | Variable        | Default                       | Meaning                       |
 |-----------------|-------------------------------|-------------------------------|
 | `TARGET_DISK`   | unset (interactive prompt)    | destination block device      |
-| `IMAGES_DIR`    | `<repo>/dist/os/amd64`        | per-slot artifacts to write   |
+| `IMAGES_DIR`    | `<repo>/dist/os/x86_64`       | per-slot artifacts to write   |
 | `ACTIVE_SLOT`   | `a`                           | slot to boot by default       |
 | `PRESERVE_USER` | `1`                           | keep an existing user partition |
 | `LAYOUT`        | `<repo>/os/partition-layout.json` | layout metadata           |
