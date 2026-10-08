@@ -72,22 +72,40 @@ OBKA_QEMU_MEM="${OBKA_QEMU_MEM:-2048}"
 OBKA_QEMU_DISK_OPTS="cache=${OBKA_QEMU_CACHE},aio=${OBKA_QEMU_AIO}"
 
 # EDK2/OVMF firmware. Homebrew's QEMU ships it under its share directory;
-# Linux distributions install it under /usr/share/OVMF or /usr/share/qemu.
-_obka_fw_code() {
-	if [ "$OBKA_ARCH" = "aarch64" ]; then printf '%s/edk2-aarch64-code.fd' "$1"; else printf '%s/edk2-x86_64-code.fd' "$1"; fi
-}
-_obka_fw_vars() {
-	if [ "$OBKA_ARCH" = "aarch64" ]; then printf '%s/edk2-arm-vars.fd' "$1"; else printf '%s/edk2-i386-vars.fd' "$1"; fi
+# Linux distributions install it under /usr/share/OVMF or /usr/share/qemu, but
+# the file names differ (Debian/Ubuntu use OVMF_CODE_4M.fd + OVMF_VARS_4M.fd,
+# the edk2 packages use edk2-<arch>-code.fd + edk2-<arch>-vars.fd, and the
+# aarch64 firmware ships as AAVMF/QEMU_EFI). Try each known name per directory.
+_obka_fw_pair() { # <dir> -> "<code> <vars>" when both are present
+	local d="$1"
+	if [ "$OBKA_ARCH" = "aarch64" ]; then
+		for c in edk2-aarch64-code.fd AAVMF_CODE.fd QEMU_EFI.fd; do
+			[ -f "$d/$c" ] || continue
+			for v in edk2-arm-vars.fd AAVMF_VARS.fd; do
+				[ -f "$d/$v" ] && { printf '%s %s' "$d/$c" "$d/$v"; return 0; }
+			done
+		done
+	else
+		for c in edk2-x86_64-code.fd OVMF_CODE_4M.fd OVMF_CODE.fd; do
+			[ -f "$d/$c" ] || continue
+			for v in edk2-i386-vars.fd OVMF_VARS_4M.fd OVMF_VARS.fd; do
+				[ -f "$d/$v" ] && { printf '%s %s' "$d/$c" "$d/$v"; return 0; }
+			done
+		done
+	fi
+	return 1
 }
 if [ -z "${OVMF_CODE:-}" ]; then
 	for d in \
 		"$(brew --prefix qemu 2>/dev/null)/share/qemu" \
 		/opt/homebrew/share/qemu /opt/homebrew/opt/qemu/share/qemu \
-		/usr/share/OVMF /usr/share/qemu /usr/share/edk2/aarch64 /usr/share/edk2/x64; do
-		[ -f "$(_obka_fw_code "$d")" ] || continue
-		OVMF_CODE="$(_obka_fw_code "$d")"
-		[ -n "${OVMF_VARS:-}" ] || OVMF_VARS="$(_obka_fw_vars "$d")"
-		break
+		/usr/share/OVMF /usr/share/qemu /usr/share/AAVMF /usr/share/qemu-efi-aarch64 \
+		/usr/share/edk2/aarch64 /usr/share/edk2/x64; do
+		if pair="$(_obka_fw_pair "$d")"; then
+			OVMF_CODE="${pair%% *}"
+			[ -n "${OVMF_VARS:-}" ] || OVMF_VARS="${pair##* }"
+			break
+		fi
 	done
 fi
 OVMF_CODE="${OVMF_CODE:?OVMF/EDK2 firmware code not found; set OVMF_CODE}"
