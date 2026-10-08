@@ -3,6 +3,9 @@
 The writable contract for an obake host: the root is immutable, and every
 allowed customization lives in a named, persistent location.
 
+For the end-to-end setup flow that installs and uses this contract, see
+`user-guide.md`.
+
 The contract is provided by the Buildroot image: the initramfs mounts the root
 slot by label and overlays `/etc` from the persist partition before handing off
 to systemd; `fstab` mounts `/var` as tmpfs with its persisted subset bound from

@@ -2,6 +2,9 @@
 
 User-initiated, signed, A/B operating system updates for an obake host.
 
+For the end-to-end setup flow that installs and updates a host, see
+`user-guide.md`.
+
 The update system is provided by the Buildroot image: RAUC (`rauc.service`),
 `obake-efi-entries.service`, the health gate, and the `obake-update` client run
 on the same slots and bundle format as before. `rauc/system.conf` matches slots
