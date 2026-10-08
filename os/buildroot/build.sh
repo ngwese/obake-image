@@ -6,11 +6,11 @@
 #
 # e.g. build.sh generic-aarch64
 #
-# <board> is one of generic-aarch64, generic-x86_64, or rk35xx. Every board is
-# built from the same shared base (configs/obake_base.config) combined with the
-# board fragment (configs/obake-<board>.config), so the base userland, kernel,
-# and runtime are identical on every board and a board only adds its own
-# arch, kernel config, and overlay.
+# <board> is one of generic-aarch64, generic-x86_64, qdl, or rk35xx. Every
+# board is built from the same shared base (configs/obake_base.config) combined
+# with the board fragment (configs/obake-<board>.config), so the base userland,
+# kernel, and runtime are identical on every board and a board only adds its
+# own arch, kernel config, and overlay.
 #
 # The Buildroot release and the realtime kernel source, with their SHA-256
 # hashes, are read from pins.json and verified before the build starts, so an
@@ -27,7 +27,7 @@ vendor="$here/vendor"
 
 if [ $# -lt 1 ]; then
 	printf 'usage: %s <board> [make-args...]\n' "$0" >&2
-	printf 'boards: generic-aarch64 generic-x86_64 rk35xx\n' >&2
+	printf 'boards: generic-aarch64 generic-x86_64 qdl rk35xx\n' >&2
 	exit 2
 fi
 board="$1"

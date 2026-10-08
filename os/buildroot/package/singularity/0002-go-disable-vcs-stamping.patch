@@ -1,0 +1,18 @@
+Disable Go VCS stamping for tarball builds
+
+Buildroot sets GIT_DIR=. so packages do not pick up a parent git tree.
+Go 1.18+ still attempts VCS stamping and fails with exit status 128 under
+that environment. Singularity's makeit overwrites GOFLAGS, so -buildvcs
+must be set in go_common_opts.mk.
+
+--- a/mlocal/frags/go_common_opts.mk
++++ b/mlocal/frags/go_common_opts.mk
+@@ -17,7 +17,7 @@
+ endif
+ GO_MODFLAGS := $(if $(wildcard $(SOURCEDIR)/vendor/modules.txt),-mod=vendor,-mod=readonly)
+ GO_MODFILES := $(SOURCEDIR)/go.mod $(SOURCEDIR)/go.sum
+-GOFLAGS := $(GO_MODFLAGS) -trimpath
++GOFLAGS := $(GO_MODFLAGS) -trimpath -buildvcs=false
+ GOPROXY := https://proxy.golang.org
+ 
+ export GOFLAGS GO111MODULE GOPROXY

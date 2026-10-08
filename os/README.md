@@ -28,12 +28,13 @@ handler is required.
 
 Every board is built from one shared base and differs only in its board
 fragment and overlay, so adding or changing a board cannot fork the base. There
-are three boards:
+are four boards:
 
 | Board             | Arch    | Base kernel config          | Purpose                    |
 |-------------------|---------|-----------------------------|----------------------------|
 | `generic-aarch64` | aarch64 | `generic-aarch64/linux.config` | QEMU `virt` proxy for arm64 |
 | `generic-x86_64`  | x86_64  | `generic-x86_64/linux.config`  | development and CI hosts   |
+| `qdl`             | x86_64  | `qdl/linux.config`             | MeLE Quieter DL (Intel N100) |
 | `rk35xx`          | aarch64 | arm64 default config        | FriendlyElec RK3588 (NanoPC-T6) |
 
 `build.sh` forms each board's defconfig as `configs/obake_base.config` followed
@@ -153,6 +154,7 @@ Run on a Linux host or inside a Linux container:
 ```
 image/os/buildroot/build.sh generic-aarch64
 image/os/buildroot/build.sh generic-x86_64
+image/os/buildroot/build.sh qdl
 image/os/buildroot/build.sh rk35xx
 ```
 
