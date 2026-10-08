@@ -130,13 +130,16 @@ if [ "${MAKE_INSTALLER:-0}" = "1" ]; then
 	bash "$here/make-installer.sh" "$binaries"
 fi
 
-# A signed update bundle for the inactive slot, when signing material is set.
+# A signed update bundle for a slot, when signing material is set. The bundle
+# slot selects which slot's rootfs and UKI (and thus which root cmdline) the
+# bundle carries; verification uses it to target the inactive slot.
 if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
-	log "building signed update bundle"
-	rm -f "$binaries/obake-$version-b.raucb"
+	bundle_slot="${BUNDLE_SLOT:-b}"
+	log "building signed update bundle for slot $bundle_slot"
+	rm -f "$binaries/obake-$version-$bundle_slot.raucb"
 	RAUC_SIGNING_CERT="$RAUC_SIGNING_CERT" RAUC_SIGNING_KEY="$RAUC_SIGNING_KEY" \
-		bash "$scripts/make-bundle.sh" b "$version" \
-		"$binaries/root-b.img" "$binaries/obake-b.efi" "$binaries"
+		bash "$scripts/make-bundle.sh" "$bundle_slot" "$version" \
+		"$binaries/root-$bundle_slot.img" "$binaries/obake-$bundle_slot.efi" "$binaries"
 fi
 
 # Record the pinned inputs (Buildroot, kernel, runtime, EFI stub) alongside the

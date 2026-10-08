@@ -91,13 +91,19 @@ if [ "${VERIFY_INTEGRATION:-0}" = "1" ]; then
 	log "installing integration test"
 	embed_bundle "${VERIFY_INTEGRATION_GOOD:-}" good.raucb
 	embed_bundle "${VERIFY_INTEGRATION_BAD:-}" bad.raucb
+	if [ "${VERIFY_INTEGRATION_SEED:-0}" = "1" ]; then
+		log "seeding the integration trigger for the installed image"
+		install -d "$target_dir/etc/obake"
+		printf '1\n' >"$target_dir/etc/obake/integration-seed"
+	fi
 	install -m 0755 "$guest/obake-integration-test.sh" "$target_dir/usr/libexec/obake/obake-integration-test.sh"
 	cat >"$target_dir/etc/systemd/system/obake-integration-test.service" <<'EOF'
 [Unit]
 Description=obake integration test
 After=obake-health-gate.service obake-runtime.target multi-user.target
 Wants=multi-user.target
-ConditionPathExists=/persist/obake-integration
+ConditionPathExists=|/persist/obake-integration
+ConditionPathExists=|/etc/obake/integration-seed
 
 [Service]
 Type=oneshot

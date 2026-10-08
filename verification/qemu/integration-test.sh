@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# End-to-end integration verification on x86_64:
+# End-to-end integration verification:
 #   install (installer) -> customize -> update -> reboot -> forced failed
 #   update -> revert, asserting the writable contract and that the user
 #   partition is never modified by the update/revert.
 #
 # Build and verification are decoupled: each image is built with the
 # verification build wrapper (which uses the Buildroot build container when
-# Docker is available) and the resulting artifacts are booted under the host's
-# QEMU. The RAUC bundles are assembled from the built artifacts with
-# `make-bundle.sh`, so `rauc` must be on PATH (the verify-env container
-# provides it).
+# Docker is available) and booted under the host's QEMU. The signed RAUC
+# bundles are produced by the build itself (the post-image hook), and the
+# installed image seeds the integration trigger on its first boot, so the
+# harness needs no host `rauc`, `sgdisk`, or `debugfs` and runs on any verify
+# host (including the macOS arm64 aarch64 proxy under HVF).
 #
 # Usage: integration-test.sh [arch]
 
@@ -33,9 +34,6 @@ disk_size="${INTEGRATION_DISK_SIZE:-8G}"
 log() { printf '[integration] %s\n' "$*" >&2; }
 fail() { printf '[integration] FAIL: %s\n' "$*" >&2; exit 1; }
 
-command -v rauc >/dev/null 2>&1 ||
-	fail "rauc is required to assemble the update bundles (use verify-env/run.sh)"
-
 rm -rf "$out"
 mkdir -p "$out"
 
@@ -45,36 +43,37 @@ keyring="$out/trusted/ca.cert.pem"
 sign_cert="$out/trusted/signing.cert.pem"
 sign_key="$out/trusted/signing.key"
 
-bundle() { # bundle <artifacts> <slot> <version> <out.raucb>
-	RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
-		bash "$scripts/make-bundle.sh" "$2" "$3" \
-		"$1/root-$2.img" "$1/obake-$2.efi" "$(dirname "$4")" >/dev/null
-	mv "$(dirname "$4")/obake-$3-$2.raucb" "$4"
-}
-
+# The bad update is a trusted but unhealthy image: the health gate must revert
+# it. Its bundle targets slot A (the inactive slot while the good image runs),
+# so its UKI cmdline selects OBKA_ROOT_A. It is built first so the good image
+# can embed its bundle.
 log "building bad update artifacts (mock_health=fail, version $bad_version)"
 OBAKE_IMAGE_VERSION="$bad_version" IMAGE_TAG="$bad_version" MAKE_DISK=0 \
 	VERIFY=1 VERIFY_INTEGRATION=1 \
-	MOCK_HEALTH=fail HEALTH_MAX_ATTEMPTS=1 \
+	MOCK_HEALTH=fail HEALTH_MAX_ATTEMPTS=1 BUNDLE_SLOT=a \
+	RAUC_KEYRING="$keyring" RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
 	bash "$buildsh" "$arch" "$out/bad" >"$out/bad-build.log" 2>&1
-# The bad update targets slot A (the inactive slot while running the good slot).
-bundle "$out/bad" a "$bad_version" "$out/bad.raucb"
+bad_bundle="$out/bad/obake-$bad_version-a.raucb"
+[ -f "$bad_bundle" ] || fail "no bad bundle built ($bad_bundle)"
 
+# The good image embeds the bad bundle so the post-update slot can install it.
+# Its bundle targets slot B.
 log "building good update artifacts (mock_health=pass, version $good_version)"
 OBAKE_IMAGE_VERSION="$good_version" IMAGE_TAG="$good_version" MAKE_DISK=0 \
 	VERIFY=1 VERIFY_INTEGRATION=1 \
-	MOCK_HEALTH=pass HEALTH_MAX_ATTEMPTS=3 \
-	VERIFY_INTEGRATION_BAD="$out/bad.raucb" \
-	RAUC_KEYRING="$keyring" \
+	MOCK_HEALTH=pass HEALTH_MAX_ATTEMPTS=3 BUNDLE_SLOT=b \
+	VERIFY_INTEGRATION_BAD="$bad_bundle" \
+	RAUC_KEYRING="$keyring" RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
 	bash "$buildsh" "$arch" "$out/good" >"$out/good-build.log" 2>&1
-# The good update targets slot B (the inactive slot while running slot A).
-bundle "$out/good" b "$good_version" "$out/good.raucb"
+good_bundle="$out/good/obake-$good_version-b.raucb"
+[ -f "$good_bundle" ] || fail "no good bundle built ($good_bundle)"
 
+# The installed base image embeds the good bundle and seeds the trigger.
 log "building installed image and installer (base version $base_version)"
 OBAKE_IMAGE_VERSION="$base_version" IMAGE_TAG="$base_version" \
 	MOCK_HEALTH=pass HEALTH_MAX_ATTEMPTS=3 \
-	VERIFY=1 VERIFY_INTEGRATION=1 \
-	VERIFY_INTEGRATION_GOOD="$out/good.raucb" \
+	VERIFY=1 VERIFY_INTEGRATION=1 VERIFY_INTEGRATION_SEED=1 \
+	VERIFY_INTEGRATION_GOOD="$good_bundle" \
 	RAUC_KEYRING="$keyring" \
 	MAKE_INSTALLER=1 \
 	bash "$buildsh" "$arch" "$out/image" >"$out/image-build.log" 2>&1
@@ -106,18 +105,8 @@ set -e
 rm -f "$vars"
 grep -qF "OBKA_INSTALL_DONE" "$out/install.log" || fail "install did not complete"
 
-# Trigger the integration service by placing the state file on the target's
-# persist partition (which the installer seeded).
-log "seeding integration state on the persist partition"
-read -r pstart pend < <(sgdisk -i 4 "$target" |
-	awk '/First sector/{s=$3} /Last sector/{e=$3} END{print s, e}')
-part="$out/persist.img"
-dd if="$target" of="$part" bs=512 skip="$pstart" count=$((pend - pstart + 1)) status=none
-printf '1\n' >"$out/state.txt"
-debugfs -w -R "write $out/state.txt /obake-integration" "$part" >/dev/null 2>&1 ||
-	fail "could not seed integration state"
-dd if="$part" of="$target" bs=512 seek="$pstart" conv=notrunc status=none
-
+# The installed image seeds the trigger on its first boot; every later boot
+# advances the integration state machine.
 efi_vars="$out/boot-vars.fd"
 cp "$OVMF_VARS" "$efi_vars"
 log_file="$out/integration.log"

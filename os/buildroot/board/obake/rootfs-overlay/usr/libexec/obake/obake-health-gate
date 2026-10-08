@@ -10,6 +10,8 @@ set -u
 
 conf="/etc/obake/health.conf"
 [ -r "$conf" ] && . "$conf"
+# A per-slot verification override, baked into the slot's rootfs.
+[ -r /usr/lib/obake/health.mock ] && . /usr/lib/obake/health.mock
 : "${max_attempts:=3}"
 
 state_dir="/persist/obake/health"

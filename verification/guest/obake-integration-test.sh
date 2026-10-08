@@ -13,7 +13,20 @@ bad="/opt/obake/bad.raucb"
 
 fail() { printf 'OBKA_INTEGRATION_FAIL %s\n' "$1"; exit 1; }
 finish() { sync; /usr/bin/systemctl poweroff -f; exit 0; }
-booted() { rauc status 2>/dev/null | sed -n 's/^Booted from: \(rootfs\.[01]\).*/\1/p'; }
+# Slot the running system booted from. RAUC reports this from the EFI boot
+# entry; when booted via the removable-media fallback it cannot, so fall back to
+# the root partition label on the kernel command line.
+booted() {
+	s="$(rauc status 2>/dev/null | sed -n 's/^Booted from: \(rootfs\.[01]\).*/\1/p')"
+	if [ -n "$s" ]; then
+		printf '%s' "$s"
+		return
+	fi
+	case "$(cat /proc/cmdline 2>/dev/null)" in
+	*OBKA_ROOT_A*) printf 'rootfs.0' ;;
+	*OBKA_ROOT_B*) printf 'rootfs.1' ;;
+	esac
+}
 version() { cat /etc/obake/image-version 2>/dev/null; }
 home_sum() { find /home -xdev -type f -exec sha256sum {} + 2>/dev/null | sort; }
 
@@ -24,7 +37,13 @@ begin_update() { # begin_update <snapshot-id>
 	printf 'snapshot=%s\nattempts=0\n' "$1" >/persist/obake/health/pending
 }
 
-# Without the trigger file (installer medium, non-integration builds) do nothing.
+# The installed integration image seeds the trigger on the persist partition on
+# its first boot, so no host disk tools are needed. Without the trigger
+# (installer medium, non-integration builds) do nothing.
+if [ ! -f "$state" ] && [ -f /etc/obake/integration-seed ]; then
+	echo 1 >"$state" 2>/dev/null
+	rm -f /etc/obake/integration-seed
+fi
 [ -f "$state" ] || { printf 'OBKA_INTEGRATION_SKIP\n'; finish; }
 
 phase="$(cat "$state" 2>/dev/null)"

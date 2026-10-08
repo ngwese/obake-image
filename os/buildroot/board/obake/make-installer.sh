@@ -104,6 +104,14 @@ rm -f "$stage/etc/obake/etc-overlay"
 printf 'tmpfs /var tmpfs mode=0755 0 0\n' >"$stage/etc/fstab"
 rm -f "$stage"/opt/obake/*.raucb
 
+# The installer medium must not run the verification services the base image
+# may carry (they belong only to the installed host), nor inherit its trigger.
+rm -f "$stage"/etc/systemd/system/obake-verify.service \
+	"$stage"/etc/systemd/system/obake-*-test.service \
+	"$stage"/etc/systemd/system/multi-user.target.wants/obake-verify.service \
+	"$stage"/etc/systemd/system/multi-user.target.wants/obake-*-test.service
+rm -f "$stage"/etc/obake/integration-seed
+
 log "packaging installer rootfs"
 size="$(du -sm "$stage" | cut -f1)"
 size=$(( size + size / 10 + 512 ))

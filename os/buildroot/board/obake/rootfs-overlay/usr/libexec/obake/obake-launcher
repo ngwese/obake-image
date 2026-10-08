@@ -11,6 +11,8 @@ shapes_dir="/persist/shapes"
 snap_root="/persist/obake/snapshots"
 conf="/etc/obake/health.conf"
 [ -r "$conf" ] && . "$conf"
+# A per-slot verification override, baked into the slot's rootfs.
+[ -r /usr/lib/obake/health.mock ] && . /usr/lib/obake/health.mock
 : "${mock_health:=pass}"
 
 usage() {

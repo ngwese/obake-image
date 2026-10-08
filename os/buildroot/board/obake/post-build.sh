@@ -73,11 +73,14 @@ if [ -n "${RAUC_KEYRING:-}" ] && [ -f "$RAUC_KEYRING" ]; then
 	install -m 0644 "$RAUC_KEYRING" "${target_dir}/etc/rauc/ca.cert.pem"
 fi
 
-# Verification overrides for the update client and health gate.
+# Verification overrides for the update client and health gate. The mock health
+# choice is per-slot, so it lives in the rootfs (not the persistent /etc
+# overlay, which is shared across slots and would shadow it).
 if [ -n "${MOCK_HEALTH:-}" ] || [ -n "${HEALTH_MAX_ATTEMPTS:-}" ]; then
+	install -d "${target_dir}/usr/lib/obake"
 	printf 'max_attempts=%s\nmock_health=%s\n' \
 		"${HEALTH_MAX_ATTEMPTS:-3}" "${MOCK_HEALTH:-pass}" \
-		>"${target_dir}/etc/obake/health.conf"
+		>"${target_dir}/usr/lib/obake/health.mock"
 fi
 if [ -n "${LOCAL_BUNDLE:-}" ] || [ -n "${UPDATE_URL:-}" ]; then
 	printf 'https_url=%s\nusb_prefer=1\nlocal_bundle=%s\n' \
