@@ -138,8 +138,8 @@ OBAKE_PROFILE=default image/os/buildroot/build.sh qdl -j"$(nproc)"
 `build.sh` composes the defconfig, applies the profile, verifies and seeds the
 pinned inputs, then builds. Both wrappers forward the build knobs
 (`MAKE_INSTALLER`, `MAKE_DISK`, `CONSOLE`, `INSTALLER_TARGET_DISK`,
-`RAUC_SIGNING_*`, `OBKA_SSH_AUTHORIZED_KEY`, and the verification
-`VERIFY*`/`BREAK` switches).
+`RAUC_SIGNING_*`, `OBKA_SSH_AUTHORIZED_KEY`, `OBKA_PASSWORD`, and the
+verification `VERIFY*`/`BREAK` switches).
 
 Images are staged under
 `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/` (containerized
@@ -181,6 +181,7 @@ headlessly (serial on stdio) and report a deterministic pass or fail.
 | Health gate marks good or reverts and restores configuration | `health-test.sh` |
 | End-to-end install, customize, update, forced failure, revert | `integration-test.sh` |
 | SSH login, directory contract, privileged access | `ssh-test.sh` |
+| Optional build-time password SSH login | `password-test.sh` |
 
 Run one with an existing artifact, for example:
 
@@ -299,8 +300,8 @@ the reinstall behavior.
 
 ## 6. SSH access
 
-The `obake` login user has no password; access is by SSH key. Authorized keys
-are read from `/etc/ssh/authorized_keys.d/obake`.
+By default the `obake` login user has no password; access is by SSH key.
+Authorized keys are read from `/etc/ssh/authorized_keys.d/obake`.
 
 Generate a key on your workstation and keep the private half where you
 generated it:
@@ -324,6 +325,20 @@ OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
 ```
 
 Then log in as `obake` once the host is on the network.
+
+Optionally set a build-time password with `OBKA_PASSWORD`. When non-empty, the
+image hashes it into the `obake` account and enables SSH password
+authentication as `obake` (local console login uses the same password). The
+hash lives only in the image rootfs — not on the persist partition — so an
+OTA/slot switch replaces it with whatever the new image carries. Anyone with
+the image artifact can offline-attack the hash; treat it as a shared device
+secret, not a high-value credential, and do not commit the cleartext.
+
+```
+OBKA_PASSWORD='choose-a-secret' \
+  OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
+  image/build/build.sh qdl
+```
 
 There is **no SSH keypair generated at build time** — the build consumes a
 public key you supply, and the private half never leaves your workstation. (The

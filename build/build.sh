@@ -12,8 +12,8 @@
 # The target architecture follows from the board. Artifacts stage under
 # image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/ override with
 # OBAKE_OUTDIR. Build knobs (VERIFY*, BREAK, MAKE_DISK, MAKE_INSTALLER,
-# IMAGE_TAG, RAUC_SIGNING_*, OBKA_SSH_AUTHORIZED_KEY, ...) are forwarded; an
-# explicit setting wins over the board profile.
+# IMAGE_TAG, RAUC_SIGNING_*, OBKA_SSH_AUTHORIZED_KEY, OBKA_PASSWORD, ...) are
+# forwarded; an explicit setting wins over the board profile.
 #
 # On a host with Docker the build runs in the native build container as the
 # invoking user. On a Linux host without Docker the Buildroot build runs

@@ -1,3 +1,5 @@
 # obake login user. Home lives on the user partition (/home) and is part of the
-# writable directory contract. Password is unset, so access is by SSH key only.
+# writable directory contract. Password field `*` disables password login
+# (SSH key only by default). Set OBKA_PASSWORD at build time to override via
+# post-fakeroot.sh (hashed into shadow; enables SSH PasswordAuthentication).
 obake -1 obake -1 * /home/obake /bin/bash audio,dialout,systemd-journal obake user
