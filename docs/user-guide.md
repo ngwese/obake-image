@@ -195,8 +195,8 @@ image/verification/qemu/boot-test.sh \
 
 - The Rockchip boot chain for `rk35xx`: DDR/TPL, TF-A BL31, and U-Boot
   bring-up before the first partition.
-- Peripheral and driver bring-up on a specific board, including the Intel
-  I226 (IGC) ethernet and USB MIDI 2.0 (UMP) on `qdl`.
+- Peripheral and driver bring-up on a specific board, including RTL8125
+  ethernet (`r8169`) and USB MIDI 2.0 (UMP) on `qdl`.
 - The firmware graphics path: the UEFI GOP framebuffer and the local text
   console that renders the installer on a monitor.
 - Real storage device names and the physical medium, which is why the target
