@@ -18,15 +18,17 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "$here/../.." && pwd)"
+image_root="$(cd "$here/.." && pwd)"
 board="${1:-generic-aarch64}"
+build_env="$project_root/image/build/build-env/run.sh"
 
 # Re-exec inside the build container when Docker is available. Inside the
 # container there is no Docker, so this does not recurse.
-if command -v docker >/dev/null 2>&1 && [ -x "$here/build-env/run.sh" ]; then
-	exec "$here/build-env/run.sh" bash image/verification/reproducibility.sh "$board"
+if command -v docker >/dev/null 2>&1 && [ -x "$build_env" ]; then
+	exec "$build_env" bash image/verification/reproducibility.sh "$board"
 fi
 
-work="${OBAKE_WORK:-$project_root/image/.build/buildroot}"
+work="${OBAKE_WORK:-$image_root/_build/buildroot}"
 dl="${DL_DIR:-$work/dl}"
 out="${OBAKE_OUT:-$work/output/$board-repro}"
 buildsh="$project_root/image/os/buildroot/build.sh"

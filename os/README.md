@@ -171,7 +171,7 @@ Environment overrides:
 
 | Variable            | Default                         | Meaning                     |
 |---------------------|---------------------------------|-----------------------------|
-| `OBAKE_WORK`        | `image/.build/buildroot`        | source, download and output |
+| `OBAKE_WORK`        | `image/_build/buildroot`        | source, download and output |
 | `DL_DIR`            | `<OBAKE_WORK>/dl`               | Buildroot download cache    |
 | `OBAKE_IMAGE_VERSION` | `buildroot/VERSION`           | version recorded in the image |
 

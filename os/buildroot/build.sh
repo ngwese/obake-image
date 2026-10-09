@@ -10,7 +10,12 @@
 # board is built from the same shared base (configs/obake_base.config) combined
 # with the board fragment (configs/obake-<board>.config), so the base userland,
 # kernel, and runtime are identical on every board and a board only adds its
-# own arch, kernel config, and overlay.
+# own arch, kernel config, and overlay. The target architecture follows from
+# the board fragment (BR2_x86_64 / BR2_aarch64); there is no arch argument.
+#
+# OBAKE_PROFILE selects profiles/<board>/{default,virtual}.conf (defaulting to
+# default). A profile supplies installer build defaults; an explicit environment
+# setting wins over the profile.
 #
 # The Buildroot release and the realtime kernel source, with their SHA-256
 # hashes, are read from pins.json and verified before the build starts, so an
@@ -40,6 +45,40 @@ if [ ! -f "$board_config" ]; then
 fi
 base_config="$here/configs/obake_base.config"
 
+# Apply the board profile, keeping any installer knobs already set in the
+# environment.
+profile="${OBAKE_PROFILE:-default}"
+profile_file="$here/profiles/$board/$profile.conf"
+if [ ! -f "$profile_file" ]; then
+	printf '[build] error: unknown profile %s for board %s\n' "$profile" "$board" >&2
+	printf '[build] supported profiles:' >&2
+	for f in "$here/profiles/$board"/*.conf; do
+		[ -f "$f" ] || continue
+		printf ' %s' "$(basename "$f" .conf)" >&2
+	done
+	printf '\n' >&2
+	exit 2
+fi
+while IFS= read -r line || [ -n "$line" ]; do
+	# Skip blanks and comments.
+	case "$line" in
+	'' | \#*) continue ;;
+	esac
+	key="${line%%=*}"
+	val="${line#*=}"
+	case "$key" in
+	MAKE_INSTALLER | CONSOLE | INSTALLER_TARGET_DISK) ;;
+	*) continue ;;
+	esac
+	# ${!key+x} is set when the variable is already in the environment.
+	if [ -z "${!key+x}" ]; then
+		export "$key=$val"
+	fi
+done <"$profile_file"
+printf '[build] profile %s: MAKE_INSTALLER=%s CONSOLE=%s INSTALLER_TARGET_DISK=%s\n' \
+	"$profile" "${MAKE_INSTALLER:-}" "${CONSOLE:-}" \
+	"${INSTALLER_TARGET_DISK:-}" >&2
+
 pin() { # pin <jq-ish-path>
 	python3 - "$pins" "$1" <<'PY'
 import json, sys
@@ -58,7 +97,7 @@ kver="$(pin kernel.version)"
 kurl="$(pin kernel.url)"
 ksha="$(pin kernel.sha256)"
 
-work="${OBAKE_WORK:-$here/../../.build/buildroot}"
+work="${OBAKE_WORK:-$here/../../_build/buildroot}"
 if [ -n "${DL_DIR:-}" ]; then
 	dl="$DL_DIR"
 elif [ -d "$vendor/dl" ]; then

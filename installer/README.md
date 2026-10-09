@@ -5,9 +5,10 @@ console with an attached keyboard and monitor; it never requires a graphical
 interface.
 
 The installer medium is built by the Buildroot build
-(`image/os/buildroot/board/obake/make-installer.sh`, `MAKE_INSTALLER=1`) and
-bundles the per-slot images and UKIs. `install.sh` needs no Python on the target
-(it sources the generated `partition-layout.env`). Verified headlessly by
+(`image/os/buildroot/board/obake/make-installer.sh`) when the selected board
+profile (or an explicit `MAKE_INSTALLER=1`) requests it, and bundles the
+per-slot images and UKIs. `install.sh` needs no Python on the target (it sources
+the generated `partition-layout.env`). Verified headlessly by
 `image/verification/qemu/install-test.sh`, `install-interactive-test.sh`, and
 `reinstall-test.sh`.
 
@@ -40,32 +41,93 @@ deletes and recreates the system partitions (ESP, both roots, persist) and
 leaves the user partition and its contents intact. Set `PRESERVE_USER=0` to
 reformat the user partition as well.
 
-## Installer image
+## Board profiles
 
-`image/verification/build.sh` emits the installer medium at
-`dist/os/<arch>/installer.img` when `MAKE_INSTALLER=1` is set. It bundles the
-built per-slot images under
-`/opt/obake/images` and runs `install.sh` at boot via
-`obake-installer.service`. The medium uses its own partition labels
-(`OBKA_INSTALLER`, `OBKA_INST`) and its own UKI, so a disk-based installer
-cannot be confused with the target it is installing to. By default it targets
-the second disk (`/dev/vdb`) and powers off when finished; set
-`INSTALLER_TARGET_DISK=interactive` to prompt on the console instead. Build it
-with:
+Installer defaults live in `image/os/buildroot/profiles/<board>/`:
+
+| Board / profile              | `MAKE_INSTALLER` | Console  | Target disk   |
+|------------------------------|------------------|----------|---------------|
+| `generic-*` `default`/`virtual` | `0`           | serial   | `/dev/vdb`    |
+| `qdl` `default`              | `1`              | local    | interactive   |
+| `qdl` `virtual`              | `1`              | serial   | `/dev/vdb`    |
+| `rk35xx` both                | `0`              | serial   | `/dev/vdb`    |
+
+An explicit `MAKE_INSTALLER` / `CONSOLE` / `INSTALLER_TARGET_DISK`
+still overrides the profile. (`CONSOLE` was formerly `INSTALLER_CONSOLE`.)
+The bare-metal `qdl` flow is therefore:
 
 ```
-MAKE_INSTALLER=1 image/verification/build.sh x86_64
-image/verification/qemu/install-test.sh dist/os/x86_64/installer.img
+image/build/build.sh qdl
+```
+
+## Installer image
+
+`image/build/build.sh` emits the installer medium at
+`image/_out/os/<board>/<profile>/<version>-<sha>[-dirty]/installer-<console>.img`
+when the profile (or `MAKE_INSTALLER=1`) requests it, where `<console>` is
+`serial` or `local` (see Console selection below). It bundles the built
+per-slot images under `/opt/obake/images` and runs `install.sh` at boot via
+`obake-installer.service`. The medium uses its own partition labels
+(`OBKA_INSTALLER`, `OBKA_INST`) and its own UKI, so a disk-based installer
+cannot be confused with the target it is installing to. By default the `virtual`
+profile targets the second disk (`/dev/vdb`) and powers off when finished; set
+`INSTALLER_TARGET_DISK=interactive` to prompt on the console instead. After
+install (success or failure), interactive media prompt for Enter before
+poweroff; non-interactive media wait `INSTALLER_POWEROFF_DELAY` seconds
+(default 10; set `0` for CI). Build and verify a serial installer with:
+
+```
+MAKE_INSTALLER=1 INSTALLER_POWEROFF_DELAY=0 \
+  image/build/build.sh generic-x86_64 virtual
+image/verification/qemu/install-test.sh \
+  "$(image/build/build.sh --print-dir generic-x86_64 virtual)/installer-serial.img"
 ```
 
 The interactive and reinstall flows are verified by
 `image/verification/qemu/install-interactive-test.sh` and
 `image/verification/qemu/reinstall-test.sh`.
 
+## Console selection
+
+`CONSOLE` selects the interactive console for both the installer medium and
+the installed OS UKIs (`serial` or `local`). By default both present over the
+serial console (`ttyS0` on x86_64, `ttyAMA0` on aarch64; `ttyS2` on `rk35xx`).
+For a host with no serial port and an attached HDMI monitor and USB keyboard,
+select the local text console instead (the `qdl` `default` profile does this):
+
+```
+image/build/build.sh qdl
+# or explicitly:
+MAKE_INSTALLER=1 CONSOLE=local INSTALLER_TARGET_DISK=interactive \
+  image/os/buildroot/build.sh qdl
+```
+
+`CONSOLE` accepts `serial` (default) or `local`; any other value fails the
+build. `local` runs the installer on `tty1` and adds `console=tty0` to the
+installer and OS kernel command lines, keeping the serial console as a
+fallback. It requires a board kernel with a framebuffer console (the `qdl`
+board provides one).
+
+### Bare metal
+
+Write the installer image to a USB stick or disk, then boot the target from it:
+
+```
+sudo dd if="$(image/build/build.sh --print-dir qdl)/installer-local.img" \
+  of=/dev/sdX bs=4M conv=fsync status=progress
+```
+
+The installer defaults to `/dev/vdb` (a QEMU name); set
+`INSTALLER_TARGET_DISK` to the target device (for example `/dev/nvme0n1`) or
+to `interactive` to select and confirm on the console. Watch the selected
+console for `OBKA_INSTALL_DONE` / `OBKA_INSTALL_EXIT=0`. Interactive media then
+wait for Enter before poweroff; non-interactive media wait
+`INSTALLER_POWEROFF_DELAY` seconds (default 10).
+
 ## Usage
 
 ```
-verification/build-env/run.sh installer/install.sh
+build/build-env/run.sh installer/install.sh
 ```
 
 Overrides:
@@ -73,8 +135,14 @@ Overrides:
 | Variable        | Default                       | Meaning                       |
 |-----------------|-------------------------------|-------------------------------|
 | `TARGET_DISK`   | unset (interactive prompt)    | destination block device      |
-| `IMAGES_DIR`    | `<repo>/dist/os/x86_64`       | per-slot artifacts to write   |
+| `IMAGES_DIR`    | (caller-provided)             | per-slot artifacts to write   |
 | `ACTIVE_SLOT`   | `a`                           | slot to boot by default       |
 | `PRESERVE_USER` | `1`                           | keep an existing user partition |
 | `LAYOUT`        | `<repo>/os/partition-layout.json` | layout metadata           |
 | `OBKA_SSH_AUTHORIZED_KEY` | unset               | public key seeded for the `obake` user |
+
+Build-time installer knobs (in addition to `CONSOLE` / `INSTALLER_TARGET_DISK`):
+
+| Variable                   | Default | Meaning                                      |
+|----------------------------|---------|----------------------------------------------|
+| `INSTALLER_POWEROFF_DELAY` | `10`    | seconds to wait before poweroff when non-interactive; `0` skips the wait (CI) |

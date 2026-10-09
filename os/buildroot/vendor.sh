@@ -13,7 +13,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 pins="$here/pins.json"
-work="${OBAKE_WORK:-$here/../../.build/buildroot}"
+work="${OBAKE_WORK:-$here/../../_build/buildroot}"
 dl="${DL_DIR:-$work/dl}"
 
 pin() {

@@ -20,12 +20,12 @@ log() { printf '[post-image] %s\n' "$*" >&2; }
 version="${OBAKE_IMAGE_VERSION:-$(cat "$extroot/VERSION" 2>/dev/null || echo 0.0.0)}"
 
 case "$(grep -E '^BR2_(aarch64|x86_64)=y' "$BR2_CONFIG")" in
-*BR2_aarch64=y*) arch=aarch64; kern=Image; efiarch=aa64; cons=ttyAMA0; mkarch=arm64 ;;
-*BR2_x86_64=y*) arch=x86_64; kern=bzImage; efiarch=x64; cons=ttyS0; mkarch=amd64 ;;
+*BR2_aarch64=y*) arch=aarch64; kern=Image; efiarch=aa64; serial_cons=ttyAMA0; mkarch=arm64 ;;
+*BR2_x86_64=y*) arch=x86_64; kern=bzImage; efiarch=x64; serial_cons=ttyS0; mkarch=amd64 ;;
 *) log "error: unsupported architecture"; exit 1 ;;
 esac
 
-# The board selects the console and, for Rockchip, the raw bootloader region.
+# The board selects the serial TTY and, for Rockchip, the raw bootloader region.
 board="${OBAKE_BOARD:-}"
 if [ -z "$board" ]; then
 	if grep -q '^BR2_TARGET_UBOOT_NEEDS_ROCKCHIP_RKBIN=y' "$BR2_CONFIG"; then
@@ -34,8 +34,10 @@ if [ -z "$board" ]; then
 		board="generic-$arch"
 	fi
 fi
-[ "$board" = "rk35xx" ] && cons=ttyS2
-log "board=$board arch=$arch console=$cons"
+[ "$board" = "rk35xx" ] && serial_cons=ttyS2
+# shellcheck source=console-env.sh
+. "$here/console-env.sh"
+log "board=$board arch=$arch CONSOLE=$console_mode cmdline=$cmdline_console"
 
 stub="$TARGET_DIR/usr/lib/systemd/boot/efi/linux$efiarch.efi.stub"
 if [ ! -f "$stub" ]; then
@@ -93,7 +95,7 @@ for slot in a b; do
 	root_label="$(label_for "root_$slot")"
 	mode=ro
 	[ "${BREAK:-}" = "ro" ] && mode=rw
-	cmdline="root=PARTLABEL=$root_label $mode rootwait console=$cons loglevel=7 efi=runtime"
+	cmdline="root=PARTLABEL=$root_label $mode rootwait $cmdline_console loglevel=7 efi=runtime"
 	log "building UKI for slot $slot ($cmdline)"
 	"$ukify" build \
 		--linux="$binaries/$kern" \

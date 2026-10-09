@@ -15,10 +15,46 @@ image_version="${OBAKE_IMAGE_VERSION:-$(cat "${extroot}/VERSION" 2>/dev/null || 
 
 # Architecture, read from the Buildroot configuration exported by Buildroot.
 arch="unknown"
+serial_cons=""
 if grep -q '^BR2_aarch64=y' "${BR2_CONFIG:-/dev/null}"; then
 	arch="aarch64"
+	serial_cons=ttyAMA0
 elif grep -q '^BR2_x86_64=y' "${BR2_CONFIG:-/dev/null}"; then
 	arch="x86_64"
+	serial_cons=ttyS0
+fi
+
+board="${OBAKE_BOARD:-}"
+if [ -z "$board" ] && [ -n "${BR2_CONFIG:-}" ]; then
+	if grep -q '^BR2_TARGET_UBOOT_NEEDS_ROCKCHIP_RKBIN=y' "$BR2_CONFIG"; then
+		board=rk35xx
+	elif [ "$arch" != "unknown" ]; then
+		board="generic-$arch"
+	fi
+fi
+[ "$board" = "rk35xx" ] && serial_cons=ttyS2
+
+# Align getty with CONSOLE so the installed OS presents a login on the same
+# console as the installer / UKI cmdline (see console-env.sh).
+if [ -n "$serial_cons" ]; then
+	# shellcheck source=console-env.sh
+	. "$(dirname "${BASH_SOURCE[0]}")/console-env.sh"
+	wants="${target_dir}/etc/systemd/system/getty.target.wants"
+	install -d "$wants"
+	# Drop board- or Buildroot-default getty enables; enable only the selected one.
+	rm -f "$wants"/getty@*.service "$wants"/serial-getty@*.service
+	ln -sf "/usr/lib/systemd/system/${getty_unit}" "$wants/$getty_unit"
+	# Mask the alternate so generators cannot resurrect a conflicting getty.
+	system_dir="${target_dir}/etc/systemd/system"
+	install -d "$system_dir"
+	if [ "$console_mode" = local ]; then
+		ln -sfn /dev/null "$system_dir/serial-getty@${serial_cons}.service"
+		rm -f "$system_dir/getty@tty1.service"
+	else
+		ln -sfn /dev/null "$system_dir/getty@tty1.service"
+		rm -f "$system_dir/serial-getty@${serial_cons}.service"
+	fi
+	printf '[post-build] CONSOLE=%s getty=%s\n' "$console_mode" "$getty_unit" >&2
 fi
 
 # The version of the kernel actually built, taken from the modules tree.
@@ -106,13 +142,8 @@ if [ -f "$sshd_config" ] &&
 	sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' "$sshd_config"
 fi
 
-# Files copied from the rootfs overlay keep the build user's ownership; polkit
-# and sshd's StrictModes require root-owned configuration.
-for p in etc/hosts etc/hostname etc/polkit-1 etc/ssh etc/systemd etc/udev \
-	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d usr/lib/systemd; do
-	[ -e "${target_dir}/$p" ] || continue
-	chown -R 0:0 "${target_dir}/$p"
-done
+# Root ownership for overlay-copied config is applied in post-fakeroot.sh so a
+# non-root build can still record uid 0 in the assembled root filesystem.
 
 printf '[post-build] kernel=%s arch=%s image-version=%s\n' \
 	"$kver" "$arch" "$image_version"

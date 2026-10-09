@@ -9,21 +9,23 @@ set -euo pipefail
 # Usage: install-test.sh [installer-image] [disk-size]
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$here/qemu-env.sh"
+. "$here/lib.sh"
 
-project_root="$(cd "$here/../../.." && pwd)"
-arch_dir="$project_root/dist/os/$OBKA_ARCH"
-installer="${1:-$arch_dir/installer.img}"
+board="$(obka_board)"
+arch_dir="$(obka_arch_dir)"
+installer="${1:-$arch_dir/installer-serial.img}"
 disk_size="${2:-8G}"
 timeout_s="${INSTALL_TIMEOUT:-300}"
-work="${INSTALL_WORK:-$here/install-work}"
+work="${INSTALL_WORK:-$image_root/_verify/$OBKA_ARCH/install}"
 install_marker="${INSTALL_MARKER:-OBKA_INSTALL_DONE}"
-log="${INSTALL_LOG:-$here/install-test.log}"
+log="${INSTALL_LOG:-$work/install-test.log}"
 
 log_fn() { printf '[install-test] %s\n' "$*" >&2; }
 
 [ -f "$installer" ] || {
-	( cd "$project_root/image/verification" && MAKE_INSTALLER=1 ./build.sh "$OBKA_ARCH" "$arch_dir" ) >&2
+	MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
+		bash "$buildsh" "$board" virtual >&2
+	installer="$arch_dir/installer-serial.img"
 }
 [ -f "$installer" ] || { printf 'missing installer image: %s\n' "$installer" >&2; exit 2; }
 

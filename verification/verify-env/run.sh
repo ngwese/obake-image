@@ -35,7 +35,7 @@ run_args=(--rm
 # KVM acceleration when the host exposes it.
 [ -e /dev/kvm ] && run_args+=(--device=/dev/kvm)
 
-# Let a harness invoke the Buildroot build container through ../build.sh.
+# Let a harness invoke the Buildroot build container through image/build/build.sh.
 if [ -S /var/run/docker.sock ]; then
 	run_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
 fi

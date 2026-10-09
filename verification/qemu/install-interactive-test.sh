@@ -8,21 +8,22 @@ set -euo pipefail
 # Usage: install-interactive-test.sh [arch]
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$here/qemu-env.sh"
+. "$here/lib.sh"
 
-project_root="$(cd "$here/../../.." && pwd)"
 arch="${1:-native}"
-out="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/install-interactive}"
+board="$(obka_board "$arch")"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/install-interactive}"
 timeout_s="${INSTALL_TIMEOUT:-900}"
-arch_dir="$project_root/dist/os/$OBKA_ARCH"
+arch_dir="$(obka_arch_dir "$arch")"
 
 mkdir -p "$out"
 printf '[install-interactive] building installer image\n'
-[ -f "$arch_dir/installer.img" ] || \
-	( cd "$project_root/image/verification" && MAKE_INSTALLER=1 \
-		INSTALLER_TARGET_DISK=interactive ./build.sh "$arch" "$arch_dir" ) >"$out/build.log" 2>&1
+[ -f "$arch_dir/installer-serial.img" ] || \
+	MAKE_INSTALLER=1 CONSOLE=serial \
+		INSTALLER_TARGET_DISK=interactive \
+		bash "$buildsh" "$board" virtual >"$out/build.log" 2>&1
 
-installer="$arch_dir/installer.img"
+installer="$arch_dir/installer-serial.img"
 [ -f "$installer" ] || { printf 'missing installer image: %s\n' "$installer" >&2; exit 2; }
 target="$out/target.img"
 rm -f "$target"
@@ -97,6 +98,11 @@ try:
         raise SystemExit("no destructive-action confirmation prompt")
     send(b"y\n")
     ok = wait_for("OBKA_INSTALL_DONE", timeout_s)
+    if ok:
+        # Interactive media waits for Enter before poweroff.
+        if not wait_for("Press Enter to shut down", 60):
+            raise SystemExit("no post-install shutdown prompt")
+        send(b"\n")
     try:
         proc.wait(timeout=60)
     except subprocess.TimeoutExpired:

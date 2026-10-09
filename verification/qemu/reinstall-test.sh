@@ -8,14 +8,14 @@ set -euo pipefail
 # Usage: reinstall-test.sh [arch]
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$here/qemu-env.sh"
+. "$here/lib.sh"
 
-project_root="$(cd "$here/../../.." && pwd)"
 arch="${1:-native}"
-out="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/reinstall}"
+board="$(obka_board "$arch")"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/reinstall}"
 timeout_s="${INSTALL_TIMEOUT:-900}"
 marker="obake preserve me"
-arch_dir="$project_root/dist/os/$OBKA_ARCH"
+arch_dir="$(obka_arch_dir "$arch")"
 
 log() { printf '[reinstall] %s\n' "$*" >&2; }
 fail() { printf '[reinstall] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -30,18 +30,18 @@ disk_tool() {
 		local args=()
 		local a
 		for a in "$@"; do args+=("$(cpath "$a")"); done
-		"$project_root/image/verification/build-env/run.sh" "${args[@]}"
+		"$project_root/image/build/build-env/run.sh" "${args[@]}"
 	fi
 }
 
 mkdir -p "$out"
 log "building installer image"
-[ -f "$arch_dir/installer.img" ] || \
-	( cd "$project_root/image/verification" && MAKE_INSTALLER=1 \
+[ -f "$arch_dir/installer-serial.img" ] || \
+	MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
 		INSTALLER_TARGET_DISK=/dev/vdb INSTALLER_PRESERVE_USER=1 \
-		./build.sh "$arch" "$arch_dir" ) >"$out/build.log" 2>&1
+		bash "$buildsh" "$board" virtual >"$out/build.log" 2>&1
 
-installer="$arch_dir/installer.img"
+installer="$arch_dir/installer-serial.img"
 target="$out/target.img"
 rm -f "$target"
 qemu-img create -f raw "$target" 8G >/dev/null

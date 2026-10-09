@@ -13,10 +13,10 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mode="${1:-good}"
 arch="${2:-native}"
-out="$project_root/dist/verify/$OBKA_ARCH/update-$mode"
+board="$(obka_board "$arch")"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/update-$mode}"
 bundle_version="${UPDATE_VERSION:-0.3.0}"
 boot_timeout="${UPDATE_BOOT_TIMEOUT:-400}"
-buildsh="$project_root/image/verification/build.sh"
 
 log() { printf '[update-test] %s\n' "$*" >&2; }
 fail() { printf '[update-test] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -38,7 +38,8 @@ fi
 OBAKE_IMAGE_VERSION="$bundle_version" IMAGE_TAG="$bundle_version" MAKE_DISK=1 \
 	VERIFY=1 VERIFY_UPDATE=1 \
 	RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
-	"$buildsh" "$arch" "$out/update" >"$out/update-build.log" 2>&1
+	OBAKE_OUTDIR="$out/update" bash "$buildsh" "$board" virtual \
+	>"$out/update-build.log" 2>&1
 
 bundle="$out/update/obake-$bundle_version-b.raucb"
 [ -f "$bundle" ] || fail "no bundle built ($bundle)"
@@ -46,7 +47,8 @@ bundle="$out/update/obake-$bundle_version-b.raucb"
 log "building verification image for mode $mode"
 RAUC_KEYRING="$out/trusted/ca.cert.pem" VERIFY=1 VERIFY_UPDATE=1 \
 	VERIFY_UPDATE_BUNDLE="$bundle" MAKE_DISK=1 \
-	"$buildsh" "$arch" "$out/image" >"$out/build.log" 2>&1
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
+	>"$out/build.log" 2>&1
 
 disk="$out/image/disk-a.img"
 [ -f "$disk" ] || fail "no verification disk"

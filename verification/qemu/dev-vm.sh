@@ -13,7 +13,7 @@ set -euo pipefail
 #     -v /usr/bin/docker:/usr/local/bin/docker:ro \
 #     obake-verify-env image/verification/qemu/dev-vm.sh
 #
-# Then from the host:  ssh -i dist/dev/id -p 2222 obake@127.0.0.1
+# Then from the host:  ssh -i image/_dev/id -p 2222 obake@127.0.0.1
 #
 # Options:
 #   -v, --verbose   log progress in detail (trace commands and stream build and
@@ -39,7 +39,7 @@ Run inside the verification environment with the port published:
     obake-verify-env image/verification/qemu/dev-vm.sh -v
 
 Then from the host:
-  ssh -i dist/dev/id -p 2222 obake@127.0.0.1
+  ssh -i image/_dev/id -p 2222 obake@127.0.0.1
 
 Options:
   -v, --verbose  log progress in detail (trace commands and stream build and
@@ -80,16 +80,18 @@ run_capture() { # run_capture <logfile> <command...>
 }
 
 arch="$OBKA_ARCH"
-work="${DEV_VM_DIR:-$project_root/dist/dev}"
+board="$(obka_board)"
+work="${DEV_VM_DIR:-$image_root/_dev}"
 port="${SSH_PORT:-2222}"
 install_timeout="${INSTALL_TIMEOUT:-900}"
 key="$work/id"
 target="$work/target.img"
-installer="$project_root/dist/os/$arch/installer.img"
+installer="$(obka_arch_dir)/installer-serial.img"
 
 mkdir -p "$work"
 vlog "work dir:    $work"
 vlog "arch:        $arch"
+vlog "board:       $board"
 vlog "ssh port:    $port"
 vlog "accel:       $OBKA_QEMU_ACCEL_NAME (cpu=$OBKA_QEMU_CPU smp=$OBKA_QEMU_SMP)"
 
@@ -99,9 +101,11 @@ if [ ! -f "$key" ]; then
 fi
 
 log "building OS artifacts and installer (accel=$OBKA_QEMU_ACCEL_NAME)"
-vlog "OBKA_SSH_AUTHORIZED_KEY=$key.pub MAKE_INSTALLER=1 image/verification/build.sh $arch"
+vlog "OBKA_SSH_AUTHORIZED_KEY=$key.pub MAKE_INSTALLER=1 image/build/build.sh $board virtual"
 run_capture "$work/build.log" env OBKA_SSH_AUTHORIZED_KEY="$key.pub" \
-  MAKE_INSTALLER=1 bash "$project_root/image/verification/build.sh" "$arch"
+  MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
+  bash "$buildsh" "$board" virtual
+installer="$(obka_arch_dir)/installer-serial.img"
 vlog "installer:   $installer"
 
 if [ ! -f "$target" ]; then

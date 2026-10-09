@@ -1,9 +1,10 @@
-# os image build artifacts
-/.build/
-/dist/
+# Local build / verification / dev outputs (leading underscore).
+_*/
+
+# Vendored download locks
 /os/buildroot/vendor/dl/**/.lock
 
-# verification harness artifacts
+# verification harness scratch that may land next to the scripts
 verification/qemu/*.log
 verification/qemu/install-work/
 

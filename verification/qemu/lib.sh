@@ -8,34 +8,51 @@
 # Environment:
 #   OBKA_ARCH      aarch64 (default on arm64 hosts) | x86_64
 #   OBKA_REBUILD   set to 1 to force a rebuild even if artifacts exist
-#   OBKA_ARTIFACTS use a specific artifact directory instead of dist/os/<arch>
+#   OBKA_ARTIFACTS use a specific artifact directory instead of the default
+#                  _out path for the board's virtual profile
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/qemu-env.sh"
 
 project_root="$(cd "$here/../../.." && pwd)"
+image_root="$(cd "$here/../.." && pwd)"
+buildsh="$project_root/image/build/build.sh"
 
-# obka_arch_dir [arch] -> artifact directory path for the architecture.
-obka_arch_dir() {
+# obka_board [arch] -> generic board for the architecture.
+obka_board() {
 	local a="${1:-native}"
 	case "$a" in
-	'' | native) printf '%s' "$project_root/dist/os/$OBKA_ARCH" ;;
-	amd64 | x86_64) printf '%s' "$project_root/dist/os/x86_64" ;;
-	arm64 | aarch64) printf '%s' "$project_root/dist/os/aarch64" ;;
-	*) printf '%s' "$project_root/dist/os/$a" ;;
+	'' | native)
+		case "$OBKA_ARCH" in
+		aarch64) printf 'generic-aarch64' ;;
+		*) printf 'generic-x86_64' ;;
+		esac
+		;;
+	amd64 | x86_64) printf 'generic-x86_64' ;;
+	arm64 | aarch64) printf 'generic-aarch64' ;;
+	*) printf 'generic-%s' "$a" ;;
 	esac
 }
 
-# obka_build [arch] -> builds if needed and prints the artifact directory.
+# obka_arch_dir [arch] -> artifact directory for the board's virtual profile.
+obka_arch_dir() {
+	local board
+	board="$(obka_board "${1:-native}")"
+	bash "$buildsh" --print-dir "$board" virtual
+}
+
+# obka_build [arch] -> builds the virtual profile if needed and prints the
+# artifact directory.
 obka_build() {
-	local arch="${1:-native}" dir
+	local arch="${1:-native}" board dir
 	if [ -n "${OBKA_ARTIFACTS:-}" ]; then
 		printf '%s' "$OBKA_ARTIFACTS"
 		return
 	fi
-	dir="$(obka_arch_dir "$arch")"
+	board="$(obka_board "$arch")"
+	dir="$(bash "$buildsh" --print-dir "$board" virtual)"
 	if [ ! -f "$dir/disk-a.img" ] || [ "${OBKA_REBUILD:-0}" = "1" ]; then
-		( cd "$project_root/image/verification" && ./build.sh "$arch" "$dir" ) >&2
+		bash "$buildsh" "$board" virtual >&2
 	fi
 	printf '%s' "$dir"
 }

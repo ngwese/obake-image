@@ -21,9 +21,10 @@ The host OS subsystem lives under `image/` in the top-level obake repository
 | Path            | Purpose                                                   |
 |-----------------|-----------------------------------------------------------|
 | `os/`           | Buildroot image build (pinned base, boards, runtime)      |
+| `build/`        | Containerized build entry point and build environment     |
 | `installer/`    | Headless installer for the image                          |
 | `host/`         | Host-level udev rules and JACK configuration for the target |
-| `verification/` | Containerized build environment and QEMU verification     |
+| `verification/` | QEMU verification, reproducibility, and update-server tooling |
 | `docs/`         | This guide and the subsystem references                   |
 
 The lifecycle is a straight line:
@@ -45,9 +46,10 @@ The lifecycle is a straight line:
 - Chapters 6-8 cover day-two operation of an installed host.
 
 The subsystem reference documents are authoritative for their areas:
-`../os/README.md` (build), `../installer/README.md` (install),
-`../verification/README.md` (harnesses), `host-config.md` (filesystem
-contract), `os-update.md` (updates), and `dev-qemu.md` (a QEMU/KVM walkthrough).
+`../os/README.md` (build), `../build/` (containerized entry point),
+`../installer/README.md` (install), `../verification/README.md` (harnesses),
+`host-config.md` (filesystem contract), `os-update.md` (updates), and
+`dev-qemu.md` (a QEMU/KVM walkthrough).
 
 ## 2. Build system structure
 
@@ -61,7 +63,8 @@ The image is built with Buildroot from a single pinned external tree,
 | `buildroot/board/obake/`   | kernel configs, fragments, overlays, build hooks  |
 | `buildroot/package/`       | in-tree packages and meta-packages                |
 | `buildroot/pins.json`      | pinned Buildroot release and kernel source        |
-| `buildroot/build.sh`       | build wrapper                                     |
+| `buildroot/profiles/`      | per-board `default` / `virtual` installer defaults |
+| `buildroot/build.sh`       | low-level build wrapper                           |
 
 Every board is built from one shared base, `configs/obake_base.config`,
 combined with a board fragment, `configs/obake-<board>.config`. The base holds
@@ -99,41 +102,50 @@ full package and kernel detail.
 ## 3. Building an image
 
 The recommended path runs inside the containerized, host-native build
-environment and stages the artifacts under `dist/os/<arch>/`:
+environment and stages the artifacts under `image/_out/`:
 
 ```
-image/verification/build.sh [arch] [outdir]
+image/build/build.sh <board> [profile]
+image/build/build.sh --print-dir <board> [profile]
 ```
 
-`arch` is `native` (default), `amd64`/`x86_64`, or `arm64`/`aarch64`; the board
-defaults to `generic-<arch>`. Select a different board with `OBAKE_BOARD`:
+`board` is `generic-aarch64`, `generic-x86_64`, `qdl`, or `rk35xx`. The target
+architecture follows from the board. `profile` is `default` (physical board;
+used when omitted) or `virtual` (emulation/verification). Each board's profile
+under `os/buildroot/profiles/<board>/` supplies installer defaults
+(`MAKE_INSTALLER`, `CONSOLE`, `INSTALLER_TARGET_DISK`); an explicit
+setting still wins. (`CONSOLE` was formerly `INSTALLER_CONSOLE`.)
 
 ```
-# generic x86_64
-image/verification/build.sh x86_64
+# generic x86_64 (no installer; both profiles are equivalent)
+image/build/build.sh generic-x86_64
 
-# the MeLE Quieter DL board
-OBAKE_BOARD=qdl image/verification/build.sh x86_64
+# the MeLE Quieter DL board, bare-metal defaults (local console, interactive disk)
+image/build/build.sh qdl
 
-# an installer medium for that board, local console
-OBAKE_BOARD=qdl MAKE_INSTALLER=1 INSTALLER_CONSOLE=local \
-  image/verification/build.sh x86_64
+# the same board for QEMU (serial console, /dev/vdb)
+image/build/build.sh qdl virtual
 ```
 
-On a Linux host with the build dependencies you can run the wrapper directly:
+On a Linux host with the build dependencies you can run the low-level wrapper
+directly:
 
 ```
 image/os/buildroot/build.sh <board> [make-args...]
-image/os/buildroot/build.sh qdl -j"$(nproc)"
+OBAKE_PROFILE=default image/os/buildroot/build.sh qdl -j"$(nproc)"
 ```
 
-`build.sh` composes the defconfig, verifies and seeds the pinned inputs, then
-builds. Both wrappers forward the build knobs (`MAKE_INSTALLER`, `MAKE_DISK`,
-`INSTALLER_CONSOLE`, `INSTALLER_TARGET_DISK`, `RAUC_SIGNING_*`,
-`OBKA_SSH_AUTHORIZED_KEY`, and the verification `VERIFY*`/`BREAK` switches).
+`build.sh` composes the defconfig, applies the profile, verifies and seeds the
+pinned inputs, then builds. Both wrappers forward the build knobs
+(`MAKE_INSTALLER`, `MAKE_DISK`, `CONSOLE`, `INSTALLER_TARGET_DISK`,
+`RAUC_SIGNING_*`, `OBKA_SSH_AUTHORIZED_KEY`, and the verification
+`VERIFY*`/`BREAK` switches).
 
-Images are emitted under `dist/os/<arch>/` (containerized path) or
-`os/buildroot`'s work tree (`$OBAKE_WORK/output/<board>/images/`, direct path):
+Images are staged under
+`image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/` (containerized
+path) or left in the Buildroot work tree under `image/_build/`
+(`$OBAKE_WORK/output/<board>/images/`, direct path). The build prints each
+`artifact: <path>` when it finishes:
 
 | Artifact                         | Meaning                                   |
 |----------------------------------|-------------------------------------------|
@@ -173,7 +185,9 @@ headlessly (serial on stdio) and report a deterministic pass or fail.
 Run one with an existing artifact, for example:
 
 ```
-image/verification/qemu/boot-test.sh dist/os/x86_64/disk-a.img OBKA_VERIFY_PASS
+image/verification/qemu/boot-test.sh \
+  "$(image/build/build.sh --print-dir generic-x86_64 virtual)/disk-a.img" \
+  OBKA_VERIFY_PASS
 ```
 
 **What QEMU cannot verify** (validate on real hardware instead):
@@ -228,20 +242,19 @@ confirm the device name.
 
 ### 5.2 Build the installer medium
 
-Build the installer with the local console so it can be driven from a monitor
-and keyboard:
+The `qdl` `default` profile already selects a local-console, interactive-disk
+installer, so a bare-metal medium is:
 
 ```
-OBAKE_BOARD=qdl MAKE_INSTALLER=1 INSTALLER_CONSOLE=local \
-  INSTALLER_TARGET_DISK=interactive \
-  image/verification/build.sh x86_64
+image/build/build.sh qdl
 ```
 
-The medium lands at `dist/os/x86_64/installer-local.img`. `INSTALLER_CONSOLE`
-accepts `serial` (default) or `local`; `local` runs the installer on `tty1`
-and adds `console=tty0` to its command line, keeping the serial console as a
-fallback. Both selections come from the same base build, so switching the
-console only re-runs the installer assembly, not the kernel or rootfs. Passing
+The medium lands at
+`image/_out/os/qdl/default/<version>-<shortsha>[-dirty]/installer-local.img`
+(the build prints the exact path). `CONSOLE` accepts `serial` or `local` and
+applies to both the installer medium and the installed OS UKIs; `local` runs
+the installer on `tty1` and adds `console=tty0` to the installer and OS
+command lines, keeping the serial console as a fallback. Passing
 `OBKA_SSH_AUTHORIZED_KEY=/path/to/id.pub` here bakes the public key into the
 medium.
 
@@ -252,8 +265,8 @@ This erases the device:
 
 ```
 lsblk -dno NAME,SIZE,TYPE
-sudo dd if=dist/os/x86_64/installer-local.img of=/dev/sdX bs=4M \
-  conv=fsync status=progress
+sudo dd if="$(image/build/build.sh --print-dir qdl)/installer-local.img" \
+  of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 `/dev/sdX` is the whole USB device, not `/dev/sdX1`.
@@ -271,11 +284,12 @@ sudo dd if=dist/os/x86_64/installer-local.img of=/dev/sdX bs=4M \
 
    Enter the whole-device path and confirm with `y`.
 3. It applies the shared partition layout, writes both root slots and the
-   per-slot UKIs, seeds the persist partition, creates the user partition, and
-   powers off.
+   per-slot UKIs, seeds the persist partition, creates the user partition,
+   then prompts you to press Enter before powering off.
 
-Non-interactive builds skip the prompt and target `INSTALLER_TARGET_DISK`
-directly. Watch the console for `OBKA_INSTALL_DONE` and
+Non-interactive builds skip the disk prompt and target `INSTALLER_TARGET_DISK`
+directly, wait `INSTALLER_POWEROFF_DELAY` seconds (default 10; use `0` in CI),
+then power off. Watch the console for `OBKA_INSTALL_DONE` and
 `OBKA_INSTALL_EXIT=0` to confirm success.
 
 Re-running the installer against an existing obake disk recreates the system
@@ -305,9 +319,8 @@ Seed the **public** key by pointing `OBKA_SSH_AUTHORIZED_KEY` at it:
   survives updates and slot switches.
 
 ```
-OBAKE_BOARD=qdl OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
-  MAKE_INSTALLER=1 INSTALLER_CONSOLE=local \
-  image/verification/build.sh x86_64
+OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
+  image/build/build.sh qdl
 ```
 
 Then log in as `obake` once the host is on the network.
@@ -357,10 +370,10 @@ automatically.
 1. **Sign a bundle.** Build with signing material, or bundle an existing slot:
 
    ```
-   os/scripts/make-signing-material.sh .build/signing
-   RAUC_SIGNING_CERT=.build/signing/signing.cert.pem \
-   RAUC_SIGNING_KEY=.build/signing/signing.key \
-     image/verification/build.sh x86_64
+   os/scripts/make-signing-material.sh _build/signing
+   RAUC_SIGNING_CERT=_build/signing/signing.cert.pem \
+   RAUC_SIGNING_KEY=_build/signing/signing.key \
+     image/build/build.sh generic-x86_64
    ```
 
 2. **Copy the bundle to the USB drive.** Place the `*.raucb` file at the root

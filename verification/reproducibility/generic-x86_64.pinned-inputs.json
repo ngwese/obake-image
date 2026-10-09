@@ -1,0 +1,22 @@
+{
+  "arch": "amd64",
+  "board": "generic-x86_64",
+  "buildroot": {
+    "release": "2026.02.3",
+    "sha256": "65528a544f1e07c2f5ec487beca483bd380a6af8351a45f3649a19a0e8b63de2"
+  },
+  "efi_stub": {
+    "linuxaa64_sha256": "788214954b286e46826bac6c2d20ba1d294695d6f4fb52743ae3915bb2cf2e14",
+    "systemd_version": "258.7"
+  },
+  "image_version": "0.0.0",
+  "kernel": {
+    "built": "7.2.9",
+    "sha256": "b4c5dfbe51a364a6c7f03869200f88c8e1f77403539005f14b7fc6bc91b8d8ba",
+    "version": "7.2.9"
+  },
+  "runtime": {
+    "jack2": "1.9.22",
+    "singularity": "4.5.1"
+  }
+}

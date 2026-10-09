@@ -12,10 +12,10 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mode="${1:-pass}"
 arch="${2:-native}"
-out="$project_root/dist/verify/$OBKA_ARCH/health-$mode"
+board="$(obka_board "$arch")"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/health-$mode}"
 bundle_version="${HEALTH_VERSION:-0.4.0}"
 boot_timeout="${HEALTH_BOOT_TIMEOUT:-400}"
-buildsh="$project_root/image/verification/build.sh"
 
 log() { printf '[health-test] %s\n' "$*" >&2; }
 fail() { printf '[health-test] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -35,7 +35,8 @@ OBAKE_IMAGE_VERSION="$bundle_version" IMAGE_TAG="$bundle_version" MAKE_DISK=1 \
 	VERIFY=1 VERIFY_HEALTH=1 MOCK_HEALTH="$mock_health" HEALTH_MAX_ATTEMPTS="$max_attempts" \
 	RAUC_SIGNING_CERT="$out/trusted/signing.cert.pem" \
 	RAUC_SIGNING_KEY="$out/trusted/signing.key" \
-	"$buildsh" "$arch" "$out/update" >"$out/update-build.log" 2>&1
+	OBAKE_OUTDIR="$out/update" bash "$buildsh" "$board" virtual \
+	>"$out/update-build.log" 2>&1
 
 bundle="$out/update/obake-$bundle_version-b.raucb"
 [ -f "$bundle" ] || fail "no bundle built"
@@ -45,7 +46,8 @@ RAUC_KEYRING="$out/trusted/ca.cert.pem" VERIFY=1 VERIFY_HEALTH=1 \
 	VERIFY_UPDATE_BUNDLE="$bundle" MAKE_DISK=1 \
 	LOCAL_BUNDLE="/opt/obake/update.raucb" \
 	MOCK_HEALTH="$mock_health" HEALTH_MAX_ATTEMPTS="$max_attempts" \
-	"$buildsh" "$arch" "$out/image" >"$out/build.log" 2>&1
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
+	>"$out/build.log" 2>&1
 
 disk="$out/image/disk-a.img"
 [ -f "$disk" ] || fail "no verification disk"

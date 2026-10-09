@@ -7,10 +7,24 @@ processors, and generative control systems for MIDI and OSC.
 | Path            | Purpose                                                  |
 |-----------------|----------------------------------------------------------|
 | `os/`           | Buildroot-based host image build (pinned base, boards, layers) |
+| `build/`        | Containerized build entry point and build environment     |
 | `installer/`    | Headless installer for the image                          |
 | `host/`         | Host-level udev rules and JACK configuration for the target |
-| `verification/` | Containerized build environment and QEMU verification     |
+| `verification/` | QEMU verification, reproducibility, and update-server tooling |
 | `docs/`         | Image documentation ([`user-guide.md`](docs/user-guide.md) end-to-end, plus `os-update.md`, `host-config.md`, `dev-qemu.md`) |
 
 This repository is consumed as the `image/` submodule of the top-level
 `obake` repository.
+
+## Build
+
+```
+image/build/build.sh <board> [profile]
+image/build/build.sh --print-dir <board> [profile]
+```
+
+`board` is `generic-aarch64`, `generic-x86_64`, `qdl`, or `rk35xx`. `profile`
+is `default` (physical board; the default when omitted) or `virtual`
+(emulation/verification). The target architecture follows from the board.
+Artifacts stage under
+`image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/`.

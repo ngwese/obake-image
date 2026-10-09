@@ -12,7 +12,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/lib.sh"
 
 arch="${1:-native}"
-out="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/persist}"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/persist}"
 boot_timeout="${PERSIST_BOOT_TIMEOUT:-300}"
 
 log() { printf '[persist-test] %s\n' "$*" >&2; }

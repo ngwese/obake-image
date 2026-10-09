@@ -20,10 +20,10 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/lib.sh"
 
 arch="${1:-native}"
-out="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/integration}"
+board="$(obka_board "$arch")"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/integration}"
 timeout_s="${INSTALL_TIMEOUT:-900}"
 boot_timeout="${INTEGRATION_BOOT_TIMEOUT:-400}"
-buildsh="$project_root/image/verification/build.sh"
 scripts="$project_root/image/os/scripts"
 
 base_version="${INTEGRATION_BASE_VERSION:-0.0.0}"
@@ -52,7 +52,8 @@ OBAKE_IMAGE_VERSION="$bad_version" IMAGE_TAG="$bad_version" MAKE_DISK=0 \
 	VERIFY=1 VERIFY_INTEGRATION=1 \
 	MOCK_HEALTH=fail HEALTH_MAX_ATTEMPTS=1 BUNDLE_SLOT=a \
 	RAUC_KEYRING="$keyring" RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
-	bash "$buildsh" "$arch" "$out/bad" >"$out/bad-build.log" 2>&1
+	OBAKE_OUTDIR="$out/bad" bash "$buildsh" "$board" virtual \
+	>"$out/bad-build.log" 2>&1
 bad_bundle="$out/bad/obake-$bad_version-a.raucb"
 [ -f "$bad_bundle" ] || fail "no bad bundle built ($bad_bundle)"
 
@@ -64,7 +65,8 @@ OBAKE_IMAGE_VERSION="$good_version" IMAGE_TAG="$good_version" MAKE_DISK=0 \
 	MOCK_HEALTH=pass HEALTH_MAX_ATTEMPTS=3 BUNDLE_SLOT=b \
 	VERIFY_INTEGRATION_BAD="$bad_bundle" \
 	RAUC_KEYRING="$keyring" RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
-	bash "$buildsh" "$arch" "$out/good" >"$out/good-build.log" 2>&1
+	OBAKE_OUTDIR="$out/good" bash "$buildsh" "$board" virtual \
+	>"$out/good-build.log" 2>&1
 good_bundle="$out/good/obake-$good_version-b.raucb"
 [ -f "$good_bundle" ] || fail "no good bundle built ($good_bundle)"
 
@@ -75,10 +77,11 @@ OBAKE_IMAGE_VERSION="$base_version" IMAGE_TAG="$base_version" \
 	VERIFY=1 VERIFY_INTEGRATION=1 VERIFY_INTEGRATION_SEED=1 \
 	VERIFY_INTEGRATION_GOOD="$good_bundle" \
 	RAUC_KEYRING="$keyring" \
-	MAKE_INSTALLER=1 \
-	bash "$buildsh" "$arch" "$out/image" >"$out/image-build.log" 2>&1
+	MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
+	>"$out/image-build.log" 2>&1
 
-installer="$out/image/installer.img"
+installer="$out/image/installer-serial.img"
 [ -f "$installer" ] || fail "no installer image"
 target="$out/target.img"
 rm -f "$target"

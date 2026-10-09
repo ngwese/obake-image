@@ -77,30 +77,31 @@ state. Reboot to complete the rollback.
 Generate development signing material (or use production keys held offline):
 
 ```sh
-image/os/scripts/make-signing-material.sh .build/signing
+image/os/scripts/make-signing-material.sh image/_build/signing
 ```
 
 Build the per-slot artifacts and a signed bundle. The build emits the bundle
 itself when signing material is set:
 
 ```sh
-RAUC_SIGNING_CERT=.build/signing/signing.cert.pem \
-RAUC_SIGNING_KEY=.build/signing/signing.key \
-  image/verification/build.sh x86_64
+RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
+RAUC_SIGNING_KEY=image/_build/signing/signing.key \
+  image/build/build.sh generic-x86_64
 ```
 
 Or bundle an already-built slot manually with `image/os/scripts/make-bundle.sh`:
 
 ```sh
-RAUC_SIGNING_CERT=.build/signing/signing.cert.pem \
-RAUC_SIGNING_KEY=.build/signing/signing.key \
+artifacts="$(image/build/build.sh --print-dir generic-x86_64)"
+RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
+RAUC_SIGNING_KEY=image/_build/signing/signing.key \
   image/os/scripts/make-bundle.sh b 1.4.0 \
-  dist/os/x86_64/root-b.img dist/os/x86_64/obake-b.efi dist/bundles
+  "$artifacts/root-b.img" "$artifacts/obake-b.efi" image/_out/bundles
 ```
 
-The CA certificate (`.build/signing/ca.cert.pem`) is the keyring baked into the
-image via `RAUC_KEYRING` at image build time; the release certificate signs the
-bundles. Bumping the pinned kernel or Singularity CE version in
+The CA certificate (`image/_build/signing/ca.cert.pem`) is the keyring baked
+into the image via `RAUC_KEYRING` at image build time; the release certificate
+signs the bundles. Bumping the pinned kernel or Singularity CE version in
 `image/os/buildroot/pins.json`, rebuilding, and bundling ships the new versions
 in an update (verified by the harness reporting the installed kernel/version).
 
@@ -110,7 +111,7 @@ Serve bundles from the development/build host to an embedded host on the same
 network:
 
 ```sh
-verification/update-server.sh dist/bundles 8080
+image/verification/update-server.sh image/_out/bundles 8080
 ```
 
 HTTP is the default; set `UPDATE_SERVER_TLS=1` for HTTPS with a generated

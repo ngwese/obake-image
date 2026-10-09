@@ -1,0 +1,4 @@
+# board: generic-x86_64
+# pinned inputs: generic-x86_64.pinned-inputs.json
+13b9c1b758c07ebcb0188180e8d96a9c022dcf7c50720e23a1bc119b7727f059  root-a.tar
+f23ee2c9907d854489c799f4fc29ecf634f744bd89959dfabee063cf98dd4e68  pinned-inputs.json

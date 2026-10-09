@@ -10,7 +10,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/lib.sh"
 
 arch="${1:-native}"
-out_base="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/verify}"
+board="$(obka_board "$arch")"
+out_base="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/verify}"
 timeout_s="${VERIFY_BOOT_TIMEOUT:-300}"
 
 expect_for() {
@@ -33,8 +34,8 @@ for case in good ro etc var user; do
 
 	break_env=""
 	[ "$case" = "good" ] || break_env="$case"
-	VERIFY=1 BREAK="$break_env" "$project_root/image/verification/build.sh" "$arch" "$d" \
-		>"$d/build.log" 2>&1
+	VERIFY=1 BREAK="$break_env" OBAKE_OUTDIR="$d" \
+		bash "$buildsh" "$board" virtual >"$d/build.log" 2>&1
 
 	if BOOT_TIMEOUT="$timeout_s" BOOT_MARKER="$expect" BOOT_LOG="$d/boot.log" \
 		"$here/boot-test.sh" "$d/disk-a.img"; then

@@ -19,10 +19,14 @@ log() { printf '[installer] %s\n' "$*" >&2; }
 die() { log "error: $*"; exit 1; }
 
 case "$(grep -E '^BR2_(aarch64|x86_64)=y' "$BR2_CONFIG")" in
-*BR2_aarch64=y*) arch=aarch64; kern=Image; efiarch=aa64; cons=ttyAMA0 ;;
-*BR2_x86_64=y*) arch=x86_64; kern=bzImage; efiarch=x64; cons=ttyS0 ;;
+*BR2_aarch64=y*) arch=aarch64; kern=Image; efiarch=aa64; serial_cons=ttyAMA0 ;;
+*BR2_x86_64=y*) arch=x86_64; kern=bzImage; efiarch=x64; serial_cons=ttyS0 ;;
 *) die "unsupported architecture" ;;
 esac
+
+# shellcheck source=console-env.sh
+. "$here/console-env.sh"
+installer_console="$console_mode"
 
 for f in root-a.img root-b.img obake-a.efi obake-b.efi; do
 	[ -f "$binaries/$f" ] || die "missing built artifact: $binaries/$f"
@@ -47,6 +51,8 @@ for f in root-a.img root-b.img obake-a.efi obake-b.efi; do
 	cp "$binaries/$f" "$stage/opt/obake/images/$f"
 done
 install -m 0755 "$image_dir/installer/install.sh" "$stage/opt/obake/install.sh"
+install -m 0755 "$image_dir/installer/installer-poweroff.sh" \
+	"$stage/opt/obake/installer-poweroff.sh"
 install -m 0644 "$layout" "$stage/opt/os/partition-layout.json"
 python3 - "$layout" >"$stage/opt/os/partition-layout.env" <<'PY'
 import json, sys
@@ -68,6 +74,19 @@ fi
 
 target_disk="${INSTALLER_TARGET_DISK:-/dev/vdb}"
 preserve_user="${INSTALLER_PRESERVE_USER:-1}"
+poweroff_delay="${INSTALLER_POWEROFF_DELAY:-10}"
+case "$poweroff_delay" in
+'' | *[!0-9]*)
+	die "invalid INSTALLER_POWEROFF_DELAY '${poweroff_delay}'; use a non-negative integer"
+	;;
+esac
+if [ "$target_disk" = "interactive" ]; then
+	poweroff_mode=interactive
+	poweroff_args="interactive"
+else
+	poweroff_mode=delay
+	poweroff_args="delay $poweroff_delay"
+fi
 {
 	cat <<'EOF'
 [Unit]
@@ -83,20 +102,23 @@ EOF
 	printf 'Environment=PRESERVE_USER=%s\n' "$preserve_user"
 	[ -n "$ssh_key" ] && printf 'Environment=OBKA_SSH_AUTHORIZED_KEY=/opt/obake/authorized_key.pub\n'
 	printf 'Environment=LAYOUT_ENV=/opt/os/partition-layout.env\n'
+	# Keep install.sh stdin on the selected console through the poweroff wait
+	# so interactive confirmation can read from the same TTY.
 	cat <<EOF
-ExecStart=/bin/sh -c '/opt/obake/install.sh < /dev/$cons; rc=\$?; echo "OBKA_INSTALL_EXIT=\$rc"; sync; /usr/bin/systemctl poweroff -f'
+ExecStart=/bin/sh -c 'exec < /dev/$service_cons; /opt/obake/install.sh; rc=\$?; echo "OBKA_INSTALL_EXIT=\$rc"; sync; /opt/obake/installer-poweroff.sh $poweroff_args'
 StandardOutput=tty
 StandardError=tty
-TTYPath=/dev/$cons
+TTYPath=/dev/$service_cons
 
 [Install]
 WantedBy=multi-user.target
 EOF
 } >"$stage/etc/systemd/system/obake-installer.service"
+log "poweroff mode=$poweroff_mode delay=$poweroff_delay"
 install -d "$stage/etc/systemd/system/multi-user.target.wants"
 ln -sf /etc/systemd/system/obake-installer.service \
 	"$stage/etc/systemd/system/multi-user.target.wants/obake-installer.service"
-ln -sf /dev/null "$stage/etc/systemd/system/serial-getty@$cons.service"
+ln -sf /dev/null "$stage/etc/systemd/system/$getty_unit"
 
 # The installer rootfs does not use the target's mount contract, and its own
 # labels must not collide with the target's.
@@ -124,7 +146,7 @@ log "building installer UKI"
 "$ukify" build \
 	--linux="$binaries/$kern" \
 	--initrd="$binaries/initramfs.gz" \
-	--cmdline="root=PARTLABEL=OBKA_INSTALLER ro rootwait console=$cons loglevel=7 efi=runtime" \
+	--cmdline="root=PARTLABEL=OBKA_INSTALLER ro rootwait $cmdline_console loglevel=7 efi=runtime" \
 	--os-release="@$TARGET_DIR/etc/os-release" \
 	--stub="$stub" \
 	--output="$work/installer.efi"
@@ -132,7 +154,7 @@ log "building installer UKI"
 log "assembling installer disk"
 esp_mib=1024
 total_mib=$(( esp_mib + size + 32 ))
-disk="$work/installer.img"
+disk="$work/installer-$installer_console.img"
 rm -f "$disk"
 truncate -s "${total_mib}M" "$disk"
 sgdisk --zap-all "$disk" >/dev/null
@@ -155,5 +177,5 @@ mcopy -i "$esp_img" "$work/installer.efi" "::/EFI/Linux/installer.efi"
 start2="$(sgdisk -i 2 "$disk" | awk '/First sector/{print $3}')"
 dd if="$esp_img" of="$disk" bs=512 seek=2048 conv=notrunc status=none
 dd if="$work/installer-root.img" of="$disk" bs=512 seek="$start2" conv=notrunc status=none
-cp "$disk" "$binaries/installer.img"
-log "installer image ready: $binaries/installer.img"
+cp "$disk" "$binaries/installer-$installer_console.img"
+log "installer image ready: $binaries/installer-$installer_console.img"

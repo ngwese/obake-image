@@ -1,6 +1,7 @@
 # verification
 
-Reproducible, host-agnostic build environment and headless QEMU checks.
+Headless QEMU checks and reproducibility tooling. Build tooling lives in
+`../build/`; this tree consumes the artifact directory the build emits.
 
 Build and verification are **decoupled**: the build emits a directory of
 artifacts and verification consumes it. The build host never runs emulated
@@ -12,30 +13,29 @@ The target architecture is chosen by `OBKA_ARCH` — `aarch64` by default on
 arm64 hosts, `x86_64` otherwise. On a macOS arm64 host the aarch64 image is the
 iteration target, booted under QEMU's `hvf` accelerator as a proxy for the real
 arm64 board; x86_64 is built the same way and verified where it can run (an
-x86_64 Linux/WSL host with KVM, or software emulation).
+x86_64 Linux/WSL host with KVM, or software emulation). Harnesses map the arch
+to the matching `generic-<arch>` board and build its `virtual` profile.
 
 ## Build environment
 
-`build-env/` is a native (host-architecture) Debian container with the Buildroot
-build dependencies and the disk tools (`gdisk`/`sgdisk`, `dosfstools` `mkfs.fat`,
-`mtools`, `parted`, `e2fsprogs`, `openssl`, `rauc`, `squashfs-tools`). It does
-**not** include QEMU or OVMF. Buildroot cross-compiles the target, so one host
-builds any target without emulation.
+The build entry point and its container live under `../build/`:
 
 ```
-image/verification/build.sh [arch] [outdir]
+image/build/build.sh <board> [profile]
+image/build/build.sh --print-dir <board> [profile]
 ```
 
-`build.sh` builds in the container and stages the artifact directory to
-`dist/os/<arch>` (or `outdir`). Build knobs (`VERIFY*`, `BREAK`, `MAKE_DISK`,
-`MAKE_INSTALLER`, `IMAGE_TAG`, `RAUC_SIGNING_*`, `RAUC_KEYRING`, ...) are
-forwarded. Verification uses a small partition layout
+`build.sh` builds in the container (as the invoking user) and stages artifacts
+under `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/`. Build
+knobs (`VERIFY*`, `BREAK`, `MAKE_DISK`, `MAKE_INSTALLER`, `IMAGE_TAG`,
+`RAUC_SIGNING_*`, `RAUC_KEYRING`, ...) are forwarded and override the board
+profile. Verification uses a small partition layout
 (`image/os/partition-layout.verify.json`) so disk images stay storable; the
 release build uses `image/os/partition-layout.json`.
 
 A Linux host with the build dependencies can also run
-`image/os/buildroot/build.sh` directly; `build.sh` detects Docker and otherwise
-builds on the host.
+`image/os/buildroot/build.sh` directly; `image/build/build.sh` detects Docker
+and otherwise builds on the host.
 
 ## Verification environment
 
@@ -47,8 +47,11 @@ a harness can still ask `build.sh` to build artifacts in the build container:
 
 ```
 image/verification/verify-env/run.sh image/verification/qemu/boot-test.sh \
-  dist/os/x86_64/disk-a.img
+  "$(image/build/build.sh --print-dir generic-x86_64 virtual)/disk-a.img"
 ```
+
+Harness work and logs land under `image/_verify/`; the developer VM helper uses
+`image/_dev/`.
 
 ## QEMU checks
 
@@ -57,7 +60,9 @@ fail. They accept an optional architecture argument and use the host's fastest
 accelerator (`hvf` on macOS, `kvm` on Linux, `tcg` otherwise).
 
 ```
-image/verification/qemu/boot-test.sh dist/os/aarch64/disk-a.img OBKA_VERIFY_PASS
+image/verification/qemu/boot-test.sh \
+  "$(image/build/build.sh --print-dir generic-x86_64 virtual)/disk-a.img" \
+  OBKA_VERIFY_PASS
 ```
 
 - `boot-test.sh <disk> [marker]` — boot under UEFI and assert a serial marker

@@ -18,7 +18,7 @@ project_root="$(cd "$os_dir/.." && pwd)"
 
 user_mib="${USER_SIZE_MIB:-8192}"
 disk="$out/disk-$slot.img"
-work="${WORK:-$project_root/.build/os/$arch-$slot/disk}"
+work="${WORK:-$project_root/_build/os/$arch-$slot/disk}"
 sector=512
 
 log() { printf '[disk] %s\n' "$*" >&2; }

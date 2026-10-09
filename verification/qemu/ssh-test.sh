@@ -14,11 +14,11 @@ set -euo pipefail
 # Usage: ssh-test.sh [arch]
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$here/qemu-env.sh"
+. "$here/lib.sh"
 
-project_root="$(cd "$here/../../.." && pwd)"
 arch="${1:-native}"
-out="${OUT_BASE:-$project_root/dist/verify/$OBKA_ARCH/ssh}"
+board="$(obka_board "$arch")"
+out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/ssh}"
 boot_timeout="${SSH_BOOT_TIMEOUT:-180}"
 ssh_port="${SSH_TEST_PORT:-2222}"
 
@@ -33,7 +33,7 @@ ssh-keygen -q -t ed25519 -N '' -f "$out/id"
 
 log "building image"
 MAKE_DISK=1 OBKA_SSH_AUTHORIZED_KEY="$out/id.pub" \
-	bash "$project_root/image/verification/build.sh" "$arch" "$out/image" \
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
 	>"$out/build.log" 2>&1
 
 disk="$out/image/disk-a.img"

@@ -12,6 +12,7 @@ RUN apt-get update \
         bash \
         ca-certificates \
         curl \
+        git \
         python3 \
         openssl \
         openssh-client \
