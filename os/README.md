@@ -55,12 +55,20 @@ a hardware smoke test (see `design.md`).
 ### Userland
 
 The minimal base runs systemd and provides `bash`, `grep`, `vi`, `sudo`,
-`systemctl`, `journalctl`, `dmesg`, `openssh`, and polkit. The `obake` login
-user is created from `board/obake/users.txt` (password field `*`, so access is
-by SSH key only by default). Set `OBKA_PASSWORD` at build time to hash a
-password into the image and enable SSH password authentication as `obake`
-(image rootfs only; not seeded onto persist). The ported host configuration
-lives in `board/obake/rootfs-overlay/`.
+`systemctl`, `journalctl`, `dmesg`, `openssh`, polkit, and a system CA trust
+store (`ca-certificates`) so host TLS clients can verify HTTPS endpoints. The
+`obake` login user is created from `board/obake/users.txt` (password field
+`*`, so access is by SSH key only by default). Set `OBKA_PASSWORD` at build
+time to hash a password into the image and enable SSH password authentication
+as `obake` (image rootfs only; not seeded onto persist). The ported host
+configuration lives in `board/obake/rootfs-overlay/`.
+
+To trust a personal or self-signed root CA (for example a private container
+registry), place PEM files named `*.crt` under
+`buildroot/board/obake/extra-ca-certificates/` and rebuild. They are merged
+into `/etc/ssl/certs/ca-certificates.crt` at build time. Do not put private
+keys there; an empty directory is the default. RAUC's release keyring at
+`/etc/rauc/ca.cert.pem` is separate and is not affected.
 
 The packages the shapes build and run on form a separate **runtime layer**, a
 `BR2_EXTERNAL` meta-package `obake-runtime` (`package/obake-runtime/Config.in`)

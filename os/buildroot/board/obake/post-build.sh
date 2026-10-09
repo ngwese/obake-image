@@ -109,6 +109,50 @@ if [ -n "${RAUC_KEYRING:-}" ] && [ -f "$RAUC_KEYRING" ]; then
 	install -m 0644 "$RAUC_KEYRING" "${target_dir}/etc/rauc/ca.cert.pem"
 fi
 
+# Merge build-time extra root CAs into the system trust store.
+# Buildroot's ca-certificates finalize hook runs before post-build (and
+# before this script can clear stale drop-ins in an incremental TARGET_DIR)
+# and removes update-ca-certificates from the target. Clear the local
+# drop-in, install any source extras, then always regenerate the bundle
+# the same way CA_CERTIFICATES_GEN_BUNDLE does.
+extra_ca_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/extra-ca-certificates"
+local_ca="${target_dir}/usr/share/ca-certificates/local"
+rm -rf "$local_ca"
+shopt -s nullglob
+extra_certs=()
+[ -d "$extra_ca_dir" ] && extra_certs=("$extra_ca_dir"/*.crt)
+shopt -u nullglob
+if [ "${#extra_certs[@]}" -gt 0 ]; then
+	install -d "$local_ca"
+	for cert in "${extra_certs[@]}"; do
+		install -m 0644 "$cert" "$local_ca/$(basename "$cert")"
+	done
+fi
+if [ -d "${target_dir}/usr/share/ca-certificates" ]; then
+	c_rehash="${HOST_DIR:?HOST_DIR unset}/bin/c_rehash"
+	[ -x "$c_rehash" ] || {
+		printf '[post-build] error: %s missing (host-openssl)\n' \
+			"$c_rehash" >&2
+		exit 1
+	}
+	build_dir="${BUILD_DIR:-${BASE_DIR:?BASE_DIR unset}/build}"
+	rm -f "${target_dir}/etc/ssl/certs/"*
+	(
+		cd "$target_dir"
+		for i in $(find usr/share/ca-certificates -name '*.crt' |
+			LC_COLLATE=C sort); do
+			ln -sf "../../../$i" \
+				"etc/ssl/certs/$(basename "$i" .crt).pem"
+			cat "$i"
+		done
+	) >"${build_dir}/ca-certificates.crt"
+	"$c_rehash" "${target_dir}/etc/ssl/certs"
+	install -D -m 0644 "${build_dir}/ca-certificates.crt" \
+		"${target_dir}/etc/ssl/certs/ca-certificates.crt"
+	printf '[post-build] system CA store: %d extra certificate(s)\n' \
+		"${#extra_certs[@]}" >&2
+fi
+
 # Verification overrides for the update client and health gate. The mock health
 # choice is per-slot, so it lives in the rootfs (not the persistent /etc
 # overlay, which is shared across slots and would shadow it).

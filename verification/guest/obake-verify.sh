@@ -55,6 +55,11 @@ check_singularity_mounts() {
 	[ -e /etc/hosts ] && [ -e /etc/localtime ] && [ -e /etc/resolv.conf ]
 }
 
+# System CA trust store must be present so TLS clients can verify HTTPS.
+check_ca_certificates() {
+	[ -s /etc/ssl/certs/ca-certificates.crt ]
+}
+
 # DNS must resolve names (systemd-resolved over DHCP). Some sandboxes block
 # outbound DNS from guests, so fall back to requiring the wired link to have
 # been configured with a global address.
@@ -140,6 +145,7 @@ run var-contract check_var_contract
 run user-partition check_user_partition
 run singularity check_singularity
 run singularity-mounts check_singularity_mounts
+run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
 run dns check_dns
 run avahi check_avahi
