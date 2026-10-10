@@ -152,5 +152,28 @@ cat "$base_config" "$board_config" >"$merged"
 # artifacts (console, bootloader) without re-deriving the board from the config.
 export OBAKE_BOARD="$board"
 
+# Kernel LOCALVERSION git provenance (-g<shortsha>[-dirty]), passed to the
+# kernel build as LOCALVERSION (after board CONFIG_LOCALVERSION). Refresh on
+# every invocation; if it changed since the last build, drop linux stamps so
+# the package rebuilds with the new release string.
+git_rev_helper="$here/../scripts/image-git-rev.sh"
+lv="$("$git_rev_helper" localversion)"
+lv_stamp="$out/obake-kernel-localversion"
+prev_lv=""
+[ -f "$lv_stamp" ] && prev_lv="$(tr -d '[:space:]' <"$lv_stamp")"
+printf '%s\n' "$lv" >"$lv_stamp"
+export OBAKE_KERNEL_LOCALVERSION="$lv"
+printf '[build] kernel localversion=%s\n' "$lv" >&2
+if [ -n "$prev_lv" ] && [ "$prev_lv" != "$lv" ]; then
+	printf '[build] localversion changed (%s -> %s); forcing linux rebuild\n' \
+		"$prev_lv" "$lv" >&2
+	for d in "$out"/build/linux-*/; do
+		[ -d "$d" ] || continue
+		rm -f "${d}localversion-obake" \
+			"${d}.stamp_built" "${d}.stamp_target_installed" \
+			"${d}.stamp_images_installed" "${d}.stamp_staging_installed"
+	done
+fi
+
 make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" DEFCONFIG="$merged" defconfig
 make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" "$@"

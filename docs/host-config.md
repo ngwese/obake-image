@@ -93,8 +93,8 @@ hosts, which are administered deliberately on trusted networks.
 
 ### Privileged access
 
-Three narrowly scoped grants let `obake` administer the host over SSH; none
-widens the read-only root or the directory contract:
+Narrowly scoped grants let `obake` administer the host over SSH; none widens
+the read-only root or the directory contract:
 
 - A polkit rule (`/etc/polkit-1/rules.d/49-obake.rules`) grants full systemd
   unit management and power control over SSH without interactive
@@ -105,11 +105,26 @@ widens the read-only root or the directory contract:
 - Membership in the `systemd-journal` group (declared in
   `/usr/lib/sysusers.d/obake.conf`) gives `journalctl` read access to the full
   system journal, not just `obake`'s own messages.
+- Passwordless sudo for `/usr/bin/obake-update` only
+  (`/etc/sudoers.d/obake-update`), so `obake-update apply` / `rollback` can run
+  over SSH without a general root shell and without `mount`/`umount` in
+  sudoers.
+
+The root account is locked (no usable password): empty-password `su -` as
+`obake` fails. Operators use SSH as `obake`, not a root login.
 
 The root filesystem stays read-only and root-owned, so none of these grants let
 the user write outside the directory contract. Only the systemd/power grant is
 polkit; the kernel-log grant is a sysctl and the journal grant is filesystem
 group access.
+
+### Removable media
+
+USB and other removable filesystem partitions are auto-mounted for `obake`
+under `/media/<label>`, where `<label>` is the filesystem label when present
+(sanitized), or a stable fallback from UUID / PARTUUID / device name when
+unlabeled. MS-DOS FAT, FAT32 (VFAT), and exFAT are supported in the kernel.
+`obake-update` prefers bundles already mounted under `/media`.
 
 ## Verification
 

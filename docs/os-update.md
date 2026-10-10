@@ -23,23 +23,28 @@ HTTPS) is not the trust anchor.
 
 Because each slot's UKI embeds its own `root=PARTLABEL=...`, a bundle is built
 for the slot it will be installed into: build it with the target slot's UKI
-(`make-bundle.sh <slot> ...`). RAUC installs to whichever slot is inactive, so a
-release that must update either slot needs the matching per-slot bundle (or a
-bundle carrying both slot UKIs). The `verification/qemu/integration-test.sh`
-harness exercises this by installing per-slot bundles in both directions.
+(`make-bundle.sh <slot> ...`). RAUC installs to whichever slot is inactive, so
+the USB/HTTPS bundle must match that inactive slot — if the host reports
+`active slot: rootfs.1 (B)`, use the slot-a bundle. A signed
+`image/build/build.sh` emits both `obake-<version>-a.raucb` and
+`obake-<version>-b.raucb` by default; set `BUNDLE_SLOT=a` or `BUNDLE_SLOT=b`
+to emit only one (as the integration harness does).
 
 ## Sources
 
 The update client (`obake-update`, configured by `/etc/obake/update.conf`)
 accepts bundles from two sources using the same format and signature check:
 
-- **USB media** — preferred when a bundle is present, so airgapped and
-  AoIP-only hosts can be updated.
+- **USB media** — preferred when a bundle is present on auto-mounted removable
+  media under `/media/<label>` (filesystem label, with a stable fallback when
+  unlabeled), so airgapped and AoIP-only hosts can be updated. FAT/FAT32 and
+  exFAT sticks are supported.
 - **A configured HTTP/HTTPS endpoint** — the `https_url` setting. For TLS, set
   `tls_cacert` to the endpoint's CA certificate (or `tls_insecure=1` for a
   development service).
 
-Updates run only on an explicit request.
+Updates run only on an explicit request. The `obake` user applies them via
+passwordless sudo for `/usr/bin/obake-update` only; the root account is locked.
 
 ## Configuration
 
@@ -60,12 +65,13 @@ When building or installing an image, set `UPDATE_URL` (build) or
 
 ```sh
 obake-update status     # running version, active slot, pending/activated slot
-obake-update apply      # fetch (USB preferred) and install to the inactive slot
+obake-update apply      # fetch (USB under /media preferred) and install
 obake-update rollback   # manually revert to the previous slot and configuration
 ```
 
-`apply` writes the inactive root slot and its UKI, then activates the slot for
-the next boot. The active slot is never modified.
+`apply` and `rollback` re-exec via `sudo` when run as `obake`. `apply` writes
+the inactive root slot and its UKI, then activates the slot for the next boot.
+The active slot is never modified.
 
 `rollback` is the manual counterpart to the health gate: it marks the currently
 booted slot bad, activates the other slot (`rauc status mark-active other`),
@@ -84,17 +90,22 @@ Build the per-slot artifacts and a signed bundle. The build emits the bundle
 itself when signing material is set:
 
 ```sh
+RAUC_KEYRING=image/_build/signing/ca.cert.pem \
 RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
 RAUC_SIGNING_KEY=image/_build/signing/signing.key \
   image/build/build.sh generic-x86_64
 ```
 
-Or bundle an already-built slot manually with `image/os/scripts/make-bundle.sh`:
+`image/build/build.sh` resolves those paths for the build container; relative
+paths are fine when you invoke it from the repo root. Or bundle an
+already-built slot manually with `image/os/scripts/make-bundle.sh` (use
+absolute paths, or run it outside the container from a cwd where the relative
+paths resolve):
 
 ```sh
 artifacts="$(image/build/build.sh --print-dir generic-x86_64)"
-RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
-RAUC_SIGNING_KEY=image/_build/signing/signing.key \
+RAUC_SIGNING_CERT="$PWD/image/_build/signing/signing.cert.pem" \
+RAUC_SIGNING_KEY="$PWD/image/_build/signing/signing.key" \
   image/os/scripts/make-bundle.sh b 1.4.0 \
   "$artifacts/root-b.img" "$artifacts/obake-b.efi" image/_out/bundles
 ```

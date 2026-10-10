@@ -97,6 +97,69 @@ check_update_gated() {
 		/etc/systemd/system /usr/lib/systemd/system 2>/dev/null
 }
 
+# Root must be locked so empty-password su does not grant a root shell.
+check_root_locked() {
+	awk -F: '$1 == "root" { exit !($2 ~ /^[!*]/) }' /etc/shadow
+}
+
+# obake may invoke the update client via passwordless sudo, but not a shell.
+check_update_sudo() {
+	id -u obake >/dev/null 2>&1 || return 1
+	su -s /bin/sh obake -c 'sudo -n /usr/bin/obake-update status' \
+		>/tmp/obake-sudo-update.log 2>&1 || return 1
+	if su -s /bin/sh obake -c 'sudo -n /bin/sh -c true' \
+		>/tmp/obake-sudo-shell.log 2>&1; then
+		return 1
+	fi
+	return 0
+}
+
+# Removable-media automount path is present (USB insert is hardware-dependent).
+check_media_automount() {
+	[ -x /usr/libexec/obake/media-automount ] || return 1
+	[ -f /etc/udev/rules.d/99-obake-media-automount.rules ] || return 1
+	[ -d /media ] || return 1
+}
+
+# OS presents as obake-os (not Buildroot) with VERSION aligned to image-version.
+check_os_identity() {
+	[ -f /etc/os-release ] || return 1
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	[ "$NAME" = "obake-os" ] || return 1
+	[ "$ID" = "obake-os" ] || return 1
+	img_ver="$(cat /etc/obake/image-version 2>/dev/null)" || return 1
+	[ "$VERSION" = "$img_ver" ] || return 1
+	[ "$VERSION_ID" = "$img_ver" ] || return 1
+	[ "$PRETTY_NAME" = "obake-os $img_ver" ] || return 1
+	grep -q 'Welcome to obake-os' /etc/issue || return 1
+	! grep -q 'Welcome to Buildroot' /etc/issue || return 1
+	! grep -q '^NAME=Buildroot$' /etc/os-release || return 1
+}
+
+# Kernel release carries board LOCALVERSION (when defined) and -g<sha>[-dirty].
+check_kernel_identity() {
+	rel="$(uname -r)"
+	printf '%s\n' "$rel" | grep -Eq '\-g[0-9a-f]+(-dirty)?$' || return 1
+	board="$(sed -n 's/^board=//p' /etc/obake/board 2>/dev/null)"
+	case "$board" in
+	qdl)
+		printf '%s\n' "$rel" | grep -q -- '-qdl-g' || return 1
+		;;
+	generic-x86_64 | generic-aarch64)
+		printf '%s\n' "$rel" | grep -q -- '-generic-g' || return 1
+		;;
+	rk35xx)
+		printf '%s\n' "$rel" | grep -q -- '-rk35xx' && return 1
+		printf '%s\n' "$rel" | grep -Eq '\-g[0-9a-f]+(-dirty)?$' || return 1
+		;;
+	*)
+		# Unknown board: still require git provenance.
+		;;
+	esac
+	return 0
+}
+
 # The client must report running version, active slot, and pending state.
 check_update_status() {
 	out="$(obake-update status 2>&1)" || return 1
@@ -152,6 +215,11 @@ run avahi check_avahi
 run git check_git
 run rauc-status check_rauc_status
 run update-gated check_update_gated
+run root-locked check_root_locked
+run update-sudo check_update_sudo
+run media-automount check_media_automount
+run os-identity check_os_identity
+run kernel-identity check_kernel_identity
 run update-status check_update_status
 run rauc-reject check_rauc_reject
 run rauc-install check_rauc_install

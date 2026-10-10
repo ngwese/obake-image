@@ -24,6 +24,25 @@ usage() {
 	exit 2
 }
 
+# apply/rollback need root (/persist health state, rauc install). Re-exec via
+# the narrowly scoped passwordless sudo grant for this binary only — do not
+# probe an unrelated command like `sudo true`.
+need_root() {
+	case "${1:-}" in
+	apply | rollback) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
+if need_root "${1:-}" && [ "$(id -u)" -ne 0 ]; then
+	if command -v sudo >/dev/null 2>&1; then
+		exec sudo -n -- "$0" "$@"
+	fi
+	printf 'obake-update: %s requires root (try: sudo obake-update %s)\n' \
+		"${1:-}" "${1:-}" >&2
+	exit 1
+fi
+
 running_version() {
 	cat /etc/obake/image-version 2>/dev/null || echo unknown
 }
@@ -40,10 +59,8 @@ stage_path() {
 	printf '%s/obake-update.raucb' "$dir"
 }
 
-# Find the first RAUC bundle on removable media. Prints the mount point and the
-# bundle path on two lines; the caller unmounts after installing.
-# Try to find a RAUC bundle on one partition. Prints "<mount>\n<bundle>" on
-# success; leaves nothing mounted on failure.
+# Temporary mount under /run/obake-usb.* for partitions automount missed.
+# Prints "<mount>\n<bundle>" on success; leaves nothing mounted on failure.
 try_mount_bundle() {
 	part="$1"
 	mnt="$(mktemp -d /run/obake-usb.XXXXXX)" || return 1
@@ -59,7 +76,19 @@ try_mount_bundle() {
 	return 1
 }
 
+# Prefer auto-mounted media under /media; fall back to a root-only probe mount.
+# Prints "<mount>\n<bundle>" on success.
 find_usb_bundle() {
+	for mnt in /media/*; do
+		[ -d "$mnt" ] || continue
+		mountpoint -q "$mnt" 2>/dev/null || continue
+		bundle="$(find "$mnt" -maxdepth 2 -type f -name '*.raucb' 2>/dev/null | sort | head -1)"
+		if [ -n "$bundle" ]; then
+			printf '%s\n%s\n' "$mnt" "$bundle"
+			return 0
+		fi
+	done
+
 	# Prefer partitions flagged removable (real USB media)...
 	for part in $(lsblk -pnro NAME,RM,TYPE 2>/dev/null | awk '$2 == 1 && $3 == "part" { print $1 }'); do
 		found="$(try_mount_bundle "$part")" && {
@@ -76,6 +105,17 @@ find_usb_bundle() {
 		}
 	done
 	return 1
+}
+
+# Only tear down temporary probe mounts; leave system /media mounts alone.
+cleanup_usb_mnt() {
+	mnt="${1:-}"
+	case "$mnt" in
+	/run/obake-usb.*)
+		umount "$mnt" 2>/dev/null || true
+		rmdir "$mnt" 2>/dev/null || true
+		;;
+	esac
 }
 
 fetch_https_bundle() {
@@ -103,8 +143,14 @@ cmd_apply() {
 	# inactive slot is written, so the health gate can restore on failure.
 	id="$(date +%Y%m%d%H%M%S 2>/dev/null || echo manual)"
 	/usr/libexec/obake/obake-launcher snapshot "$id" >/dev/null 2>&1 || true
-	mkdir -p /persist/obake/health 2>/dev/null || true
-	printf 'snapshot=%s\nattempts=0\n' "$id" >/persist/obake/health/pending 2>/dev/null || true
+	if ! mkdir -p /persist/obake/health; then
+		printf 'obake-update: cannot create /persist/obake/health (is /persist mounted?)\n' >&2
+		exit 1
+	fi
+	if ! printf 'snapshot=%s\nattempts=0\n' "$id" >/persist/obake/health/pending; then
+		printf 'obake-update: cannot write /persist/obake/health/pending\n' >&2
+		exit 1
+	fi
 
 	# A local bundle (test/development) is used directly when configured.
 	if [ -n "$local_bundle" ] && [ -f "$local_bundle" ]; then
@@ -113,7 +159,7 @@ cmd_apply() {
 		return $?
 	fi
 
-	# Prefer USB when configured and present.
+	# Prefer USB when configured and present (/media first, then probe mount).
 	if [ "$usb_prefer" = 1 ]; then
 		if found="$(find_usb_bundle 2>/dev/null)"; then
 			mnt="$(printf '%s\n' "$found" | sed -n 1p)"
@@ -121,8 +167,7 @@ cmd_apply() {
 			printf 'obake-update: installing %s (USB)\n' "$bundle" >&2
 			rauc install "$bundle"
 			rc=$?
-			umount "$mnt" 2>/dev/null || true
-			rmdir "$mnt" 2>/dev/null || true
+			cleanup_usb_mnt "$mnt"
 			return $rc
 		fi
 	fi
@@ -141,8 +186,7 @@ cmd_apply() {
 		printf 'obake-update: installing %s (USB)\n' "$bundle" >&2
 		rauc install "$bundle"
 		rc=$?
-		umount "$mnt" 2>/dev/null || true
-		rmdir "$mnt" 2>/dev/null || true
+		cleanup_usb_mnt "$mnt"
 		return $rc
 	fi
 

@@ -157,6 +157,19 @@ Rockchip SoC drivers. `post-build.sh` records the built kernel version under
 `/etc/obake/kernel` and refuses to produce an image whose kernel is not
 realtime.
 
+Board `linux.config` files set `CONFIG_LOCALVERSION` (`-qdl` for `qdl`,
+`-generic` for both generic boards; `rk35xx` has no board suffix yet).
+`build.sh` passes `-g<shortsha>[-dirty]` from the image git tree as the
+kernel `LOCALVERSION` make variable on every build (same provenance as
+artifact directories), so `uname -r` looks like `7.2.9-qdl-g<shortsha>[-dirty]`.
+
+### OS identity
+
+Images brand as **obake-os**: `/etc/os-release` has `NAME`/`ID=obake-os`,
+`VERSION`/`VERSION_ID` from `buildroot/VERSION` (or `OBAKE_IMAGE_VERSION`),
+and `PRETTY_NAME="obake-os <version>"`. The login banner (`/etc/issue`) is
+`Welcome to obake-os`.
+
 ### Building
 
 Run on a Linux host or inside a Linux container:

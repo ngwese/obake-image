@@ -93,7 +93,13 @@ The userland packages are grouped into `BR2_EXTERNAL` meta-packages:
 layers are added the same way. The realtime kernel is built from the pinned
 source with a shared realtime fragment (`PREEMPT_RT`, 1000 Hz tick) and a
 host fragment (loop/SquashFS/initrd/FAT/dm-verity and the writable-contract
-options).
+options). Board configs add a `CONFIG_LOCALVERSION` suffix (`-qdl`,
+`-generic`; `rk35xx` none yet) and the build appends `-g<shortsha>[-dirty]`
+from the image git tree, so `uname -r` identifies board and revision.
+
+The running image presents as **obake-os** in `/etc/os-release` and greets
+with `Welcome to obake-os` at login (`/etc/issue`). `VERSION` matches
+`/etc/obake/image-version` (from `os/buildroot/VERSION`).
 
 Buildroot cross-compiles and never executes target binaries, so any Linux host
 can build any target image without emulation. See `../os/README.md` for the
@@ -348,8 +354,10 @@ login.) SSH *host* keys (the server identity) are generated at install time and
 seeded onto the persist partition.
 
 Once connected, the `obake` user can manage systemd units and power state and
-read `dmesg` and the full journal without a password, but cannot write outside
-the directory contract. See `host-config.md`.
+read `dmesg` and the full journal without a password, and can run
+`obake-update` via a narrowly scoped passwordless sudo grant, but cannot open a
+general root shell or write outside the directory contract. The root account is
+locked (no empty-password `su -`). See `host-config.md`.
 
 ## 7. Filesystem layout: read-only root vs writable contract
 
@@ -385,23 +393,33 @@ automatically.
 1. **Sign a bundle.** Build with signing material, or bundle an existing slot:
 
    ```
-   os/scripts/make-signing-material.sh _build/signing
-   RAUC_SIGNING_CERT=_build/signing/signing.cert.pem \
-   RAUC_SIGNING_KEY=_build/signing/signing.key \
+   image/os/scripts/make-signing-material.sh image/_build/signing
+   RAUC_KEYRING=image/_build/signing/ca.cert.pem \
+   RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
+   RAUC_SIGNING_KEY=image/_build/signing/signing.key \
      image/build/build.sh generic-x86_64
    ```
 
+   Run from the repo root. `image/build/build.sh` resolves those paths for
+   the build container.
+
 2. **Copy the bundle to the USB drive.** Place the `*.raucb` file at the root
-   of any partition, or one directory deep; the filesystem type and label do
-   not matter.
+   of any partition, or one directory deep. FAT/FAT32 and exFAT are supported.
+   When the stick is attached, it auto-mounts for `obake` at `/media/<label>`
+   (filesystem label, or a stable fallback if unlabeled).
 
 3. **Apply it on the host.**
 
    ```
    obake-update status     # running version, active slot, pending/activated
-   obake-update apply      # USB preferred, then the configured HTTPS endpoint
-   obake-update rollback   # manually revert to the previous slot
+   obake-update apply      # /media USB preferred, then the HTTPS endpoint
+   obake-update rollback
    ```
+
+   `apply` and `rollback` need root (persist health state, RAUC). The image
+   grants passwordless sudo for `/usr/bin/obake-update` only, so those commands
+   re-exec via `sudo` when run as `obake`. Removable media does not require
+   `mount`/`umount` in sudoers.
 
 `apply` snapshots the shape configuration, writes the inactive slot, and marks
 the update pending; a health gate marks it good after a successful boot or

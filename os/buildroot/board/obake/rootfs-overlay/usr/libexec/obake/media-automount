@@ -1,0 +1,124 @@
+#!/bin/sh
+# Auto-mount removable / USB filesystems under /media/<label> for the obake
+# user. Invoked by udev on block add/remove; keeps state in /run/obake-media.
+set -u
+
+state_dir=/run/obake-media
+media_root=/media
+
+sanitize_name() {
+	# Allow alphanumerics and a few safe punctuation chars; collapse the rest.
+	printf '%s' "$1" | tr -c 'A-Za-z0-9._+-' '_' | sed 's/^_*//;s/_*$//;s/__*/_/g'
+}
+
+mount_name_for() {
+	devnode="$1"
+	label="$(blkid -s LABEL -o value "$devnode" 2>/dev/null || true)"
+	uuid="$(blkid -s UUID -o value "$devnode" 2>/dev/null || true)"
+	partuuid="$(blkid -s PARTUUID -o value "$devnode" 2>/dev/null || true)"
+	name="$(sanitize_name "$label")"
+	if [ -z "$name" ]; then
+		name="$(sanitize_name "$uuid")"
+	fi
+	if [ -z "$name" ]; then
+		name="$(sanitize_name "$partuuid")"
+	fi
+	if [ -z "$name" ]; then
+		name="disk-$(basename "$devnode")"
+	fi
+	printf '%s' "$name"
+}
+
+unique_mountpoint() {
+	base="$1"
+	devnode="$2"
+	mnt="${media_root}/${base}"
+	if [ ! -e "$mnt" ] || { [ -d "$mnt" ] && ! mountpoint -q "$mnt" 2>/dev/null; }; then
+		printf '%s' "$mnt"
+		return 0
+	fi
+	# Label collision: append a short unique suffix from the device identity.
+	suffix="$(blkid -s UUID -o value "$devnode" 2>/dev/null | tr -d '-' | cut -c1-8)"
+	[ -n "$suffix" ] || suffix="$(basename "$devnode")"
+	printf '%s' "${media_root}/${base}-${suffix}"
+}
+
+is_fat_family() {
+	case "$1" in
+	vfat | msdos | fat | exfat) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
+ensure_obake_readable() {
+	mnt="$1"
+	# Enough for update bundles at the root or one directory deep.
+	chmod a+rx "$mnt" 2>/dev/null || true
+	find "$mnt" -maxdepth 2 -type d -exec chmod a+rx {} + 2>/dev/null || true
+	find "$mnt" -maxdepth 2 -type f -exec chmod a+r {} + 2>/dev/null || true
+}
+
+do_add() {
+	kern="$1"
+	devnode="/dev/${kern}"
+	[ -b "$devnode" ] || return 0
+
+	fstype="$(blkid -s TYPE -o value "$devnode" 2>/dev/null || true)"
+	[ -n "$fstype" ] || return 0
+
+	mkdir -p "$state_dir" "$media_root"
+	base="$(mount_name_for "$devnode")"
+	mnt="$(unique_mountpoint "$base" "$devnode")"
+	mkdir -p "$mnt"
+
+	uid="$(id -u obake 2>/dev/null || echo 1000)"
+	gid="$(id -g obake 2>/dev/null || echo 1000)"
+	opts="rw,nosuid,nodev,noexec"
+	if is_fat_family "$fstype"; then
+		opts="${opts},uid=${uid},gid=${gid},umask=022"
+		case "$fstype" in
+		vfat | fat) opts="${opts},utf8=1,shortname=mixed" ;;
+		esac
+	fi
+
+	if ! mount -t "$fstype" -o "$opts" "$devnode" "$mnt" 2>/dev/null; then
+		# Retry without an explicit type (lets mount(8) probe).
+		if ! mount -o "$opts" "$devnode" "$mnt" 2>/dev/null; then
+			rmdir "$mnt" 2>/dev/null || true
+			return 1
+		fi
+	fi
+
+	if ! is_fat_family "$fstype"; then
+		ensure_obake_readable "$mnt"
+	fi
+
+	printf '%s\n' "$mnt" >"${state_dir}/${kern}"
+	return 0
+}
+
+do_remove() {
+	kern="$1"
+	state="${state_dir}/${kern}"
+	[ -f "$state" ] || return 0
+	mnt="$(cat "$state" 2>/dev/null || true)"
+	rm -f "$state"
+	[ -n "$mnt" ] || return 0
+	if mountpoint -q "$mnt" 2>/dev/null; then
+		umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null || true
+	fi
+	rmdir "$mnt" 2>/dev/null || true
+}
+
+cmd="${1:-}"
+kern="${2:-}"
+[ -n "$cmd" ] && [ -n "$kern" ] || {
+	printf 'usage: media-automount {add|remove} <kernel-name>\n' >&2
+	exit 2
+}
+
+case "$cmd" in
+add) do_add "$kern" ;;
+remove) do_remove "$kern" ;;
+*) exit 2 ;;
+esac

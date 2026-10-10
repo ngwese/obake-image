@@ -1,0 +1,12 @@
+# Auto-mount removable / USB filesystem partitions under /media/<label>.
+# Match USB bus as well as removable=1: QEMU usb-storage often reports RM=0.
+# Skip whole-disk devices that are only partition parents (no ID_FS_USAGE).
+
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="partition", ENV{ID_FS_USAGE}=="filesystem", ENV{ID_BUS}=="usb", RUN+="/usr/libexec/obake/media-automount add %k"
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="partition", ENV{ID_FS_USAGE}=="filesystem", ENV{ID_DRIVE_REMOVABLE}=="1", RUN+="/usr/libexec/obake/media-automount add %k"
+
+# Whole-disk filesystems (USB stick with no partition table).
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_FS_USAGE}=="filesystem", ENV{ID_BUS}=="usb", RUN+="/usr/libexec/obake/media-automount add %k"
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_FS_USAGE}=="filesystem", ENV{ID_DRIVE_REMOVABLE}=="1", RUN+="/usr/libexec/obake/media-automount add %k"
+
+ACTION=="remove", SUBSYSTEM=="block", RUN+="/usr/libexec/obake/media-automount remove %k"

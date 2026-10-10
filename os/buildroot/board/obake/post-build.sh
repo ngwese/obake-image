@@ -57,24 +57,48 @@ if [ -n "$serial_cons" ]; then
 	printf '[post-build] CONSOLE=%s getty=%s\n' "$console_mode" "$getty_unit" >&2
 fi
 
-# The version of the kernel actually built, taken from the modules tree.
+# The version of the kernel actually built. Prefer linux's kernel.release
+# (includes board CONFIG_LOCALVERSION + git LOCALVERSION) so a stale
+# lib/modules/<old> tree from an earlier build cannot win the scan.
 kver=""
-for d in "${target_dir}"/lib/modules/*/; do
+kconfig=""
+krelease=""
+for d in "${BASE_DIR:-}"/build/linux-*/; do
 	[ -d "$d" ] || continue
-	kver="$(basename "$d")"
+	[ -f "${d}.config" ] && kconfig="${d}.config"
+	[ -f "${d}include/config/kernel.release" ] &&
+		krelease="$(tr -d '[:space:]' <"${d}include/config/kernel.release")"
 done
+if [ -n "$krelease" ]; then
+	kver="$krelease"
+elif [ -d "${target_dir}/lib/modules" ]; then
+	for d in "${target_dir}"/lib/modules/*/; do
+		[ -d "$d" ] || continue
+		kver="$(basename "$d")"
+	done
+fi
 [ -n "$kver" ] || {
-	printf '[post-build] error: no kernel modules found in %s/lib/modules\n' \
-		"$target_dir" >&2
+	printf '[post-build] error: no kernel release / modules found\n' >&2
 	exit 1
 }
+mod_dir=""
+if [ -d "${target_dir}/lib/modules/${kver}" ]; then
+	mod_dir="${target_dir}/lib/modules/${kver}"
+elif [ -d "${target_dir}/usr/lib/modules/${kver}" ]; then
+	mod_dir="${target_dir}/usr/lib/modules/${kver}"
+fi
+[ -n "$mod_dir" ] || {
+	printf '[post-build] error: modules missing for kernel %s\n' "$kver" >&2
+	exit 1
+}
+# Drop leftover module trees from prior LOCALVERSION values.
+for d in "${target_dir}"/lib/modules/*/ "${target_dir}"/usr/lib/modules/*/; do
+	[ -d "$d" ] || continue
+	[ "$(basename "$d")" = "$kver" ] && continue
+	rm -rf "$d"
+done
 
 # Refuse an image whose kernel is not realtime.
-kconfig=""
-for c in "${BASE_DIR:-}"/build/linux-*/.config; do
-	[ -f "$c" ] || continue
-	kconfig="$c"
-done
 if [ -z "$kconfig" ] || ! grep -q '^CONFIG_PREEMPT_RT=y' "$kconfig"; then
 	printf '[post-build] error: realtime kernel config (CONFIG_PREEMPT_RT) missing\n' >&2
 	exit 1
@@ -92,6 +116,33 @@ if [ -n "${IMAGE_TAG:-}" ]; then
 else
 	rm -f "${target_dir}/etc/obake/image-tag"
 fi
+
+# Brand the image as obake-os. Buildroot writes a Buildroot os-release during
+# target-finalize before this script runs; replace it with project identity.
+# Also rewrite /etc/issue so incremental builds pick up the banner even when
+# BR2_TARGET_GENERIC_ISSUE has not yet been re-applied to an existing tree.
+os_release="${target_dir}/usr/lib/os-release"
+{
+	printf 'NAME=obake-os\n'
+	printf 'ID=obake-os\n'
+	printf 'VERSION=%s\n' "$image_version"
+	printf 'VERSION_ID=%s\n' "$image_version"
+	printf 'PRETTY_NAME="obake-os %s"\n' "$image_version"
+} >"$os_release"
+ln -sfn ../usr/lib/os-release "${target_dir}/etc/os-release"
+printf 'Welcome to obake-os\n' >"${target_dir}/etc/issue"
+if ! grep -q '^NAME=obake-os$' "$os_release" ||
+	grep -q '^NAME=Buildroot$' "$os_release"; then
+	printf '[post-build] error: os-release branding failed\n' >&2
+	exit 1
+fi
+if ! grep -q 'Welcome to obake-os' "${target_dir}/etc/issue" ||
+	grep -q 'Welcome to Buildroot' "${target_dir}/etc/issue"; then
+	printf '[post-build] error: /etc/issue branding failed\n' >&2
+	exit 1
+fi
+printf '[post-build] os-release NAME=obake-os VERSION=%s\n' \
+	"$image_version" >&2
 
 # Mount points for the writable contract (persist, user, ESP).
 install -d "${target_dir}/persist" "${target_dir}/home" "${target_dir}/boot/efi"

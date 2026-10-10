@@ -79,15 +79,10 @@ default | virtual) ;;
 esac
 
 artifact_dir() {
-	local version sha dirty=""
+	local version sha dirty
 	version="$(tr -d '[:space:]' <"$image_root/os/buildroot/VERSION")"
-	if sha="$(git -C "$image_root" rev-parse --short HEAD 2>/dev/null)"; then
-		if [ -n "$(git -C "$image_root" status --porcelain 2>/dev/null)" ]; then
-			dirty="-dirty"
-		fi
-	else
-		sha="nogit"
-	fi
+	sha="$("$image_root/os/scripts/image-git-rev.sh" sha)"
+	dirty="$("$image_root/os/scripts/image-git-rev.sh" dirty)"
 	printf '%s/_out/os/%s/%s/%s-%s%s' \
 		"$image_root" "$board" "$profile" "$version" "$sha" "$dirty"
 }
@@ -147,11 +142,18 @@ if command -v docker >/dev/null 2>&1; then
 	# Verification uses small disk images so they can be staged on a laptop; the
 	# release build uses the real partition-layout.json. Use the container path.
 	export LAYOUT="${LAYOUT:-/work/image/os/partition-layout.verify.json}"
-	# Translate input paths under the repo to their container-visible form.
+	# Resolve host paths to absolute form, then rewrite the repo prefix to the
+	# container mount (/work). Relative paths (as in the docs) must not be left
+	# relative: post-image runs with Buildroot's cwd, not the repo root.
 	for v in RAUC_SIGNING_CERT RAUC_SIGNING_KEY RAUC_KEYRING VERIFY_UPDATE_BUNDLE \
 		VERIFY_INTEGRATION_GOOD VERIFY_INTEGRATION_BAD OBKA_SSH_AUTHORIZED_KEY LAYOUT; do
 		val="${!v:-}"
 		[ -n "$val" ] || continue
+		case "$val" in
+		/*) ;;
+		*) val="$(pwd)/$val" ;;
+		esac
+		val="$(realpath -m -- "$val")"
 		export "$v=$(printf '%s' "$val" | sed "s#^$project_root#/work#")"
 	done
 	"$here/build-env/run.sh" bash image/os/buildroot/build.sh "$board" \

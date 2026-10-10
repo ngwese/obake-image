@@ -1,0 +1,4 @@
+# Narrow grant: only the update client (apply/rollback need root for /persist
+# health state and rauc). Removable media is auto-mounted under /media; do not
+# add mount/umount or a general root shell here.
+obake ALL=(root) NOPASSWD: /usr/bin/obake-update

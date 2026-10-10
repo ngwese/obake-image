@@ -132,16 +132,28 @@ if [ "${MAKE_INSTALLER:-0}" = "1" ]; then
 	bash "$here/make-installer.sh" "$binaries"
 fi
 
-# A signed update bundle for a slot, when signing material is set. The bundle
-# slot selects which slot's rootfs and UKI (and thus which root cmdline) the
-# bundle carries; verification uses it to target the inactive slot.
+# Signed update bundles, when signing material is set. Each bundle carries one
+# slot's rootfs and UKI (and thus that slot's root cmdline). Default is both
+# slots so a host on either A or B can be updated; set BUNDLE_SLOT=a|b to emit
+# only one (verification harnesses use that).
 if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
-	bundle_slot="${BUNDLE_SLOT:-b}"
-	log "building signed update bundle for slot $bundle_slot"
-	rm -f "$binaries/obake-$version-$bundle_slot.raucb"
-	RAUC_SIGNING_CERT="$RAUC_SIGNING_CERT" RAUC_SIGNING_KEY="$RAUC_SIGNING_KEY" \
-		bash "$scripts/make-bundle.sh" "$bundle_slot" "$version" \
-		"$binaries/root-$bundle_slot.img" "$binaries/obake-$bundle_slot.efi" "$binaries"
+	case "${BUNDLE_SLOT:-}" in
+	a | b) bundle_slots="$BUNDLE_SLOT" ;;
+	'') bundle_slots="a b" ;;
+	*)
+		printf '[post-image] error: BUNDLE_SLOT must be a, b, or empty (got %s)\n' \
+			"$BUNDLE_SLOT" >&2
+		exit 1
+		;;
+	esac
+	for bundle_slot in $bundle_slots; do
+		log "building signed update bundle for slot $bundle_slot"
+		rm -f "$binaries/obake-$version-$bundle_slot.raucb"
+		RAUC_SIGNING_CERT="$RAUC_SIGNING_CERT" RAUC_SIGNING_KEY="$RAUC_SIGNING_KEY" \
+			bash "$scripts/make-bundle.sh" "$bundle_slot" "$version" \
+			"$binaries/root-$bundle_slot.img" \
+			"$binaries/obake-$bundle_slot.efi" "$binaries"
+	done
 fi
 
 # Record the pinned inputs (Buildroot, kernel, runtime, EFI stub) alongside the

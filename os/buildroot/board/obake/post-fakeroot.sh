@@ -52,10 +52,34 @@ else
 	rm -f "$pw_dropin"
 fi
 
+# Lock the root account: Buildroot leaves an empty password, which would let
+# `su -` from obake succeed with no credentials. Do not set a root password.
+shadow="${target_dir}/etc/shadow"
+if [ -f "$shadow" ]; then
+	tmp="$(mktemp)"
+	awk -F: 'BEGIN { OFS = ":" } $1 == "root" { $2 = "!" } { print }' \
+		"$shadow" >"$tmp"
+	grep -q '^root:!' "$tmp" || {
+		rm -f "$tmp"
+		printf '[post-fakeroot] error: failed to lock root in shadow\n' >&2
+		exit 1
+	}
+	cat "$tmp" >"$shadow"
+	rm -f "$tmp"
+	chmod 640 "$shadow"
+	chown 0:0 "$shadow"
+	printf '[post-fakeroot] root account locked\n' >&2
+fi
+
 # Files copied from the rootfs overlay keep the build user's ownership; polkit
-# and sshd's StrictModes require root-owned configuration.
+# and sshd's StrictModes require root-owned configuration. sudoers.d drop-ins
+# must be mode 0440 or sudo ignores them.
 for p in etc/hosts etc/hostname etc/polkit-1 etc/ssh etc/systemd etc/udev \
-	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d usr/lib/systemd; do
+	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d \
+	etc/sudoers.d usr/lib/systemd; do
 	[ -e "${target_dir}/$p" ] || continue
 	chown -R 0:0 "${target_dir}/$p"
 done
+if [ -d "${target_dir}/etc/sudoers.d" ]; then
+	find "${target_dir}/etc/sudoers.d" -type f -exec chmod 0440 {} +
+fi

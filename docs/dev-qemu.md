@@ -129,6 +129,8 @@ obake-update status
 rauc status
 
 # system identity
+cat /etc/os-release /etc/issue
+uname -r
 cat /etc/obake/kernel /etc/obake/singularity /etc/obake/board
 singularity --version
 

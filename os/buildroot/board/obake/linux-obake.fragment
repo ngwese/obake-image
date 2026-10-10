@@ -4,6 +4,12 @@
 # rk35xx board builds from the architecture default config and relies on this
 # fragment to guarantee the writable contract, the Singularity runtime, the
 # EFI/vfat ESP, and RAUC's dm-verity bundles all have their kernel support.
+#
+# Board LOCALVERSION suffixes live in each board's linux.config. Git
+# provenance (-g<shortsha>[-dirty]) is injected at build time via the
+# LOCALVERSION make variable; do not enable AUTO (kernel input is a tarball).
+# CONFIG_LOCALVERSION_AUTO is not set
+
 CONFIG_MODULES=y
 CONFIG_MODULE_UNLOAD=y
 CONFIG_BINFMT_MISC=y
@@ -20,10 +26,12 @@ CONFIG_SQUASHFS_ZSTD=y
 # Initramfs support, required to run the obake /etc-overlay init.
 CONFIG_BLK_DEV_INITRD=y
 
-# FAT/VFAT for the EFI system partition.
+# FAT/MSDOS/VFAT for the EFI system partition and removable update media;
+# exFAT for common USB sticks.
 CONFIG_FAT_FS=y
 CONFIG_MSDOS_FS=y
 CONFIG_VFAT_FS=y
+CONFIG_EXFAT_FS=y
 CONFIG_NLS_CODEPAGE_437=y
 CONFIG_NLS_ISO8859_1=y
 
