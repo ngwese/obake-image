@@ -38,6 +38,8 @@ stub="$TARGET_DIR/usr/lib/systemd/boot/efi/linux$efiarch.efi.stub"
 ukify="$(command -v ukify || true)"
 [ -n "$ukify" ] || ukify="$HOST_DIR/bin/ukify"
 [ -x "$ukify" ] || die "ukify not found"
+kernel_uname="$(sed -n 's/^image=//p' "$TARGET_DIR/etc/obake/kernel" | head -1 | tr -d '[:space:]')"
+[ -n "$kernel_uname" ] || die "kernel release missing from $TARGET_DIR/etc/obake/kernel"
 
 work="$binaries/.installer"
 stage="$work/rootfs"
@@ -146,6 +148,7 @@ log "building installer UKI"
 "$ukify" build \
 	--linux="$binaries/$kern" \
 	--initrd="$binaries/initramfs.gz" \
+	--uname="$kernel_uname" \
 	--cmdline="root=PARTLABEL=OBKA_INSTALLER ro rootwait $cmdline_console loglevel=7 efi=runtime" \
 	--os-release="@$TARGET_DIR/etc/os-release" \
 	--stub="$stub" \

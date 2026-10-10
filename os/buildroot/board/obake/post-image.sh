@@ -52,6 +52,11 @@ ukify="$(command -v ukify || true)"
 [ -n "$ukify" ] || ukify="$HOST_DIR/bin/ukify"
 [ -x "$ukify" ] || { log "error: ukify not found (need host-systemd)"; exit 1; }
 
+# post-build records the built release (uname -r). Passing it avoids ukify
+# scraping the kernel image ("Kernel version not specified...").
+kernel_uname="$(sed -n 's/^image=//p' "$TARGET_DIR/etc/obake/kernel" | head -1 | tr -d '[:space:]')"
+[ -n "$kernel_uname" ] || { log "error: kernel release missing from $TARGET_DIR/etc/obake/kernel"; exit 1; }
+
 # Assemble the initramfs the UKIs bundle: busybox + libc + the obake init that
 # mounts the root slot and overlays /etc from persist.
 initramfs="$binaries/initramfs.gz"
@@ -100,6 +105,7 @@ for slot in a b; do
 	"$ukify" build \
 		--linux="$binaries/$kern" \
 		--initrd="$initramfs" \
+		--uname="$kernel_uname" \
 		--cmdline="$cmdline" \
 		--os-release="@$TARGET_DIR/etc/os-release" \
 		--stub="$stub" \
