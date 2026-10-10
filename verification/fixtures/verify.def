@@ -1,0 +1,5 @@
+Bootstrap: docker
+From: alpine:3.20
+
+%runscript
+	exec /bin/true

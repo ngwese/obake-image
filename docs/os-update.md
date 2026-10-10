@@ -64,14 +64,16 @@ When building or installing an image, set `UPDATE_URL` (build) or
 ## Applying an update
 
 ```sh
-obake-update status     # running version, active slot, pending/activated slot
-obake-update apply      # fetch (USB under /media preferred) and install
-obake-update rollback   # manually revert to the previous slot and configuration
+obake-update status                      # running version, active slot, pending
+obake-update apply                       # USB under /media preferred, then HTTPS
+obake-update apply /path/to/bundle.raucb # install a local signed bundle
+obake-update rollback                    # revert to the previous slot
 ```
 
 `apply` and `rollback` re-exec via `sudo` when run as `obake`. `apply` writes
 the inactive root slot and its UKI, then activates the slot for the next boot.
-The active slot is never modified.
+The active slot is never modified. A caller-supplied bundle path is installed
+with the same signature verification as USB and HTTPS sources.
 
 `rollback` is the manual counterpart to the health gate: it marks the currently
 booted slot bad, activates the other slot (`rauc status mark-active other`),

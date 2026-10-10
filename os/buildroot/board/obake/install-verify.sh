@@ -18,6 +18,7 @@ set -euo pipefail
 target_dir="${1:?usage: install-verify.sh <target-dir>}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 guest="$(cd "$here/../../../../verification/guest" && pwd)"
+fixtures="$(cd "$here/../../../../verification/fixtures" && pwd)"
 
 verify="${VERIFY:-0}"
 break="${BREAK:-}"
@@ -35,6 +36,7 @@ apply_break() {
 	esac
 }
 
+# Guest suites run as the login user so missing userns / sudo / polkit fail CI.
 install_service() { # <name> <script> <after>
 	local name="$1" script="$2" after="$3"
 	install -m 0755 "$guest/$script" "$target_dir/usr/libexec/obake/$script"
@@ -46,6 +48,8 @@ Wants=multi-user.target
 
 [Service]
 Type=oneshot
+User=obake
+Group=obake
 ExecStart=/usr/libexec/obake/$script
 StandardOutput=journal+console
 StandardError=journal+console
@@ -64,6 +68,16 @@ embed_bundle() { # <src> <dst-name>
 	install -m 0644 "$1" "$target_dir/opt/obake/$2"
 }
 
+embed_verify_sif() {
+	local sif="$fixtures/verify.sif"
+	[ -f "$sif" ] || {
+		log "error: missing $sif (see image/verification/fixtures/README.md)"
+		exit 1
+	}
+	install -d "$target_dir/opt/obake"
+	install -m 0644 "$sif" "$target_dir/opt/obake/verify.sif"
+}
+
 apply_break
 
 # Remove any verification services left by a previous build in this tree.
@@ -76,7 +90,7 @@ rm -f "$target_dir"/etc/systemd/system/multi-user.target.wants/obake-verify.serv
 
 # Remove any embedded bundles from a previous build in this output tree; each
 # verification image embeds only what its own run sets.
-rm -f "$target_dir"/opt/obake/*.raucb
+rm -f "$target_dir"/opt/obake/*.raucb "$target_dir"/opt/obake/verify.sif
 
 install -d "$target_dir/usr/libexec/obake"
 
@@ -102,11 +116,13 @@ if [ "${VERIFY_INTEGRATION:-0}" = "1" ]; then
 Description=obake integration test
 After=obake-health-gate.service obake-runtime.target multi-user.target
 Wants=multi-user.target
-ConditionPathExists=|/persist/obake-integration
+ConditionPathExists=|/home/obake/.obake-integration-state
 ConditionPathExists=|/etc/obake/integration-seed
 
 [Service]
 Type=oneshot
+User=obake
+Group=obake
 ExecStart=/usr/libexec/obake/obake-integration-test.sh
 StandardOutput=journal+console
 StandardError=journal+console
@@ -134,6 +150,7 @@ if [ -n "${VERIFY_UPDATE_BUNDLE:-}" ] || [ "${VERIFY_UPDATE:-0}" = "1" ]; then
 fi
 
 log "installing guest functional checks"
+embed_verify_sif
 install -m 0755 "$guest/obake-verify.sh" "$target_dir/usr/libexec/obake/obake-verify.sh"
 cat >"$target_dir/etc/systemd/system/obake-verify.service" <<'EOF'
 [Unit]
@@ -143,7 +160,9 @@ Wants=multi-user.target network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '/usr/libexec/obake/obake-verify.sh; rc=$?; echo "OBKA_VERIFY_EXIT=$rc"; sync; /usr/bin/systemctl poweroff -f'
+User=obake
+Group=obake
+ExecStart=/bin/sh -c '/usr/libexec/obake/obake-verify.sh; rc=$?; echo "OBKA_VERIFY_EXIT=$rc"; sync; /usr/bin/systemctl poweroff'
 StandardOutput=journal+console
 StandardError=journal+console
 

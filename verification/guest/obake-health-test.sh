@@ -1,9 +1,9 @@
 #!/bin/sh
-# Health-gate functional test for the verification image.
+# Health-gate functional test for the verification image (as User=obake).
 #
 # Boot 1 (slot A): run the update client, which snapshots the shape
 # configuration and marks the update pending, then installs the bundle to slot
-# B. Assert the snapshot and pending marker exist before the slot is written.
+# B. Assert the snapshot and pending marker exist before power off.
 #
 # Later boots: report which slot booted and whether the previous configuration
 # was restored. The health gate itself runs earlier in boot and prints
@@ -11,7 +11,7 @@
 set -u
 
 bundle="/opt/obake/update.raucb"
-marker="/persist/obake-health-phase"
+marker="/home/obake/.obake-health-phase"
 
 fail() {
 	printf 'OBKA_HEALTH_TEST_FAIL %s\n' "$1"
@@ -20,15 +20,14 @@ fail() {
 }
 finish() {
 	sync
-	/usr/bin/systemctl poweroff -f
+	/usr/bin/systemctl poweroff
 	exit 0
 }
 
 if [ ! -f "$marker" ]; then
 	[ -f "$bundle" ] || fail "no-bundle"
-	obake-update apply >/tmp/health-apply.log 2>&1 || fail "apply"
-	# The snapshot and pending marker must exist before the inactive slot is
-	# written.
+	obake-update apply "$bundle" >/tmp/health-apply.log 2>&1 || fail "apply"
+	# Snapshot and pending marker are written by obake-update (via sudo).
 	ls /persist/obake/snapshots/*/shapes.list >/dev/null 2>&1 || fail "no-snapshot"
 	[ -f /persist/obake/health/pending ] || fail "no-pending"
 	printf 'OBKA_HEALTH_PHASE1_PASS\n'

@@ -1,21 +1,18 @@
 #!/bin/sh
-# End-to-end integration test: install -> customize -> update -> reboot ->
-# forced failed update -> revert, asserting the writable contract and that the
-# user partition is never modified.
+# End-to-end integration test as User=obake: customize home data -> update ->
+# reboot -> forced failed update -> revert, asserting the login-user contract
+# and that the user partition is never modified by a failed update.
 #
-# State is kept on the persist partition. The service only acts once the
-# trigger file exists, so the installer medium is unaffected.
+# State lives under /home (writable by obake). Updates go through obake-update.
 set -u
 
-state="/persist/obake-integration"
+state="/home/obake/.obake-integration-state"
 good="/opt/obake/good.raucb"
 bad="/opt/obake/bad.raucb"
 
 fail() { printf 'OBKA_INTEGRATION_FAIL %s\n' "$1"; exit 1; }
-finish() { sync; /usr/bin/systemctl poweroff -f; exit 0; }
-# Slot the running system booted from. RAUC reports this from the EFI boot
-# entry; when booted via the removable-media fallback it cannot, so fall back to
-# the root partition label on the kernel command line.
+finish() { sync; /usr/bin/systemctl poweroff; exit 0; }
+
 booted() {
 	s="$(rauc status 2>/dev/null | sed -n 's/^Booted from: \(rootfs\.[01]\).*/\1/p')"
 	if [ -n "$s" ]; then
@@ -28,52 +25,36 @@ booted() {
 	esac
 }
 version() { cat /etc/obake/image-version 2>/dev/null; }
-home_sum() { find /home -xdev -type f -exec sha256sum {} + 2>/dev/null | sort; }
+home_sum() { find /home/obake -xdev -type f -exec sha256sum {} + 2>/dev/null | sort; }
 
-# Mark the update pending so the health gate validates the next boot.
-begin_update() { # begin_update <snapshot-id>
-	/usr/libexec/obake/obake-launcher snapshot "$1" >/dev/null 2>&1 || fail "snapshot"
-	mkdir -p /persist/obake/health
-	printf 'snapshot=%s\nattempts=0\n' "$1" >/persist/obake/health/pending
-}
-
-# The installed integration image seeds the trigger on the persist partition on
-# its first boot, so no host disk tools are needed. Without the trigger
-# (installer medium, non-integration builds) do nothing.
+# Seed trigger from the image; state must live where obake can write.
 if [ ! -f "$state" ] && [ -f /etc/obake/integration-seed ]; then
-	echo 1 >"$state" 2>/dev/null
-	rm -f /etc/obake/integration-seed
+	echo 1 >"$state" 2>/dev/null || fail "seed-state"
 fi
 [ -f "$state" ] || { printf 'OBKA_INTEGRATION_SKIP\n'; finish; }
 
 phase="$(cat "$state" 2>/dev/null)"
 case "$phase" in
 1)
-	# Customize: user data, persistent /etc, and shape configuration.
-	echo user >/home/obake-user-marker 2>/dev/null || fail "home-write"
-	echo etc >/etc/obake-cfg-marker 2>/dev/null || fail "etc-write"
-	mkdir -p /persist/shapes
-	echo shape >/persist/shapes/shape.conf 2>/dev/null || fail "shapes-write"
-	home_sum >/persist/obake-home.sha
-	begin_update "integration-1"
-	rauc install "$good" >/tmp/good.log 2>&1 || fail "good-install"
+	echo user >/home/obake/obake-user-marker 2>/dev/null || fail "home-write"
+	! touch /etc/obake-cfg-should-fail 2>/dev/null || fail "etc-writable"
+	echo shape >/home/obake/shape.conf 2>/dev/null || fail "shapes-write"
+	home_sum >/home/obake/.obake-home.sha
+	obake-update apply "$good" >/tmp/good.log 2>&1 || fail "good-install"
 	echo 2 >"$state"
 	printf 'OBKA_INTEGRATION_PHASE1_PASS\n'
 	finish
 	;;
 2)
 	[ "$(version)" = "0.5.0" ] || fail "not-new-version(ver=$(version))"
-	[ "$(cat /etc/obake-cfg-marker 2>/dev/null)" = etc ] || fail "etc-lost"
-	[ "$(cat /home/obake-user-marker 2>/dev/null)" = user ] || fail "home-lost"
-	[ "$(cat /persist/shapes/shape.conf 2>/dev/null)" = shape ] || fail "shapes-lost"
-	begin_update "integration-2"
-	rauc install "$bad" >/tmp/bad.log 2>&1 || fail "bad-install"
+	[ "$(cat /home/obake/obake-user-marker 2>/dev/null)" = user ] || fail "home-lost"
+	[ "$(cat /home/obake/shape.conf 2>/dev/null)" = shape ] || fail "shapes-lost"
+	obake-update apply "$bad" >/tmp/bad.log 2>&1 || fail "bad-install"
 	echo 3 >"$state"
 	printf 'OBKA_INTEGRATION_PHASE2_PASS\n'
 	finish
 	;;
 3)
-	# The health gate reverted this failing slot; record and move on.
 	printf 'OBKA_INTEGRATION_PHASE3_REACHED\n'
 	echo 4 >"$state"
 	finish
@@ -81,9 +62,8 @@ case "$phase" in
 *)
 	[ "$(booted)" = "rootfs.1" ] || fail "not-reverted(booted=$(booted))"
 	[ "$(version)" = "0.5.0" ] || fail "wrong-version(ver=$(version))"
-	[ "$(cat /etc/obake-cfg-marker 2>/dev/null)" = etc ] || fail "etc-lost-after-revert"
-	[ "$(cat /persist/shapes/shape.conf 2>/dev/null)" = shape ] || fail "shapes-lost-after-revert"
-	[ "$(home_sum)" = "$(cat /persist/obake-home.sha 2>/dev/null)" ] ||
+	[ "$(cat /home/obake/shape.conf 2>/dev/null)" = shape ] || fail "shapes-lost-after-revert"
+	[ "$(home_sum)" = "$(cat /home/obake/.obake-home.sha 2>/dev/null)" ] ||
 		fail "user-partition-modified"
 	rm -f "$state"
 	printf 'OBKA_INTEGRATION_PASS\n'

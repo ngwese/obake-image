@@ -18,6 +18,9 @@ image_root="$(cd "$here/../.." && pwd)"
 mode="${1:-localversion}"
 sha="nogit"
 dirty=""
+# Build containers often run as a different uid than the bind-mounted tree;
+# mark the image root safe so provenance is not silently "nogit".
+git config --global --add safe.directory "$image_root" >/dev/null 2>&1 || true
 if got="$(git -C "$image_root" rev-parse --short HEAD 2>/dev/null)"; then
 	sha="$got"
 	if [ -n "$(git -C "$image_root" status --porcelain 2>/dev/null)" ]; then

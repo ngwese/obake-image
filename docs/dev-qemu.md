@@ -133,8 +133,10 @@ cat /etc/os-release /etc/issue
 uname -r
 cat /etc/obake/kernel /etc/obake/singularity /etc/obake/board
 singularity --version
+# shapes need USER_NS (non-setuid Singularity); smoke with a local SIF:
+#   singularity run /path/to/shape.sif
 
-# writable contract
+# writable contract (SSH obake: /home yes, /etc no)
 findmnt / /etc /var /home /persist
 cat /etc/obake/directory-contract
 
@@ -151,8 +153,9 @@ systemctl restart obake-launcher.service
 ls -la /home/obake /persist/shapes
 ```
 
-Writes to `/etc` land in the overlay on persist, `/home` is the separate user
-partition, and the rest of the root is read-only. See `host-config.md`.
+System writes to `/etc` land in the overlay on persist; the `obake` SSH user
+writes under `/home` and cannot write `/etc`. The rest of the root is
+read-only. See `host-config.md`.
 
 ## Notes
 

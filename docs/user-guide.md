@@ -356,8 +356,10 @@ seeded onto the persist partition.
 Once connected, the `obake` user can manage systemd units and power state and
 read `dmesg` and the full journal without a password, and can run
 `obake-update` via a narrowly scoped passwordless sudo grant, but cannot open a
-general root shell or write outside the directory contract. The root account is
-locked (no empty-password `su -`). See `host-config.md`.
+general root shell or write `/etc` / the read-only root. Home data lives under
+`/home/obake`. The root account is locked (no empty-password `su -`). Singularity
+shapes run as `obake` using user namespaces (no setuid helper). See
+`host-config.md`.
 
 ## 7. Filesystem layout: read-only root vs writable contract
 

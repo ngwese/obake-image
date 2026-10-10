@@ -20,7 +20,7 @@ conf="${OBKA_UPDATE_CONF:-/etc/obake/update.conf}"
 : "${local_bundle:=}"
 
 usage() {
-	printf 'usage: obake-update {status|apply|rollback}\n' >&2
+	printf 'usage: obake-update {status|apply [<bundle-path>]|rollback}\n' >&2
 	exit 2
 }
 
@@ -139,6 +139,8 @@ cmd_status() {
 }
 
 cmd_apply() {
+	bundle_path="${1:-}"
+
 	# Snapshot the shape configuration and mark the update pending before the
 	# inactive slot is written, so the health gate can restore on failure.
 	id="$(date +%Y%m%d%H%M%S 2>/dev/null || echo manual)"
@@ -150,6 +152,17 @@ cmd_apply() {
 	if ! printf 'snapshot=%s\nattempts=0\n' "$id" >/persist/obake/health/pending; then
 		printf 'obake-update: cannot write /persist/obake/health/pending\n' >&2
 		exit 1
+	fi
+
+	# Caller-supplied path (same signature check as other sources).
+	if [ -n "$bundle_path" ]; then
+		if [ ! -f "$bundle_path" ]; then
+			printf 'obake-update: bundle not found: %s\n' "$bundle_path" >&2
+			exit 1
+		fi
+		printf 'obake-update: installing %s (local)\n' "$bundle_path" >&2
+		rauc install "$bundle_path"
+		return $?
 	fi
 
 	# A local bundle (test/development) is used directly when configured.
@@ -215,7 +228,7 @@ cmd_rollback() {
 
 case "${1:-}" in
 status) cmd_status ;;
-apply) cmd_apply ;;
+apply) cmd_apply "${2:-}" ;;
 rollback) cmd_rollback ;;
 *) usage ;;
 esac

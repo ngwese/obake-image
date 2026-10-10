@@ -2,3 +2,5 @@
 os/buildroot/vendor/buildroot-*.tar.gz filter=lfs diff=lfs merge=lfs -text
 os/buildroot/vendor/dl/** filter=lfs diff=lfs merge=lfs -text
 os/buildroot/vendor/efi-stub/** filter=lfs diff=lfs merge=lfs -text
+# verification SIF fixtures (tiny local containers for guest checks)
+verification/fixtures/*.sif filter=lfs diff=lfs merge=lfs -text

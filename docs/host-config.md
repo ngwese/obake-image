@@ -76,16 +76,17 @@ preserves user data.
 
 ## Directory contract
 
-`/etc/obake/directory-contract` names the locations a user may customize:
-`/etc`, `/var`, `/home`, and `/persist`. Everything else on the root is
-read-only.
+`/etc/obake/directory-contract` names the mounts that are system-writable for
+host configuration and user data: `/etc`, `/var`, `/home`, and `/persist`.
+Everything else on the root is read-only. System services (and root) write the
+`/etc` overlay and other contract mounts; the `obake` SSH login is narrower.
 
 Users connect over SSH as the `obake` account (home `/home/obake` on the user
 partition). Authorized keys are read from `/etc/ssh/authorized_keys.d/<user>` so
 access can be provisioned into the image or the persist partition without
 writing to the read-only home. Verified behaviour:
 
-- the user can modify files within the contract (e.g. `/home/obake`);
+- the user can modify files under `/home/obake`;
 - a write to `/etc` or to the read-only root fails.
 
 OpenSSH's per-source auth penalty (`PerSourcePenalties`) is disabled on these

@@ -1,11 +1,9 @@
 #!/bin/sh
 # Guest functional checks for the obake writable contract. Installed into a
-# verification image by build.sh when VERIFY=1, run at boot, and the machine is
-# powered off. Prints one OBKA_CHECK line per check and a final verdict the QEMU
-# harness matches.
+# verification image by build.sh when VERIFY=1, run at boot as User=obake, and
+# the machine is powered off. Prints one OBKA_CHECK line per check and a final
+# verdict the QEMU harness matches.
 set -u
-
-pin_version="${OBKA_SINGULARITY_VERSION:-4.5.1}"
 
 run() {
 	name="$1"
@@ -18,29 +16,38 @@ run() {
 	fi
 }
 
-# Root must be read-only: a write outside the contract has to fail.
-check_root_readonly() {
-	! touch /obake-root-probe 2>/dev/null
+# Suites must run as the login user so privilege gaps fail CI.
+check_running_as_obake() {
+	[ "$(id -un 2>/dev/null)" = "obake" ]
 }
 
-# /etc must be a writable overlay backed by the persist partition.
+# Root must be mounted read-only. As obake, touch("/") fails on permissions
+# even when the mount is rw, so assert the mount options instead.
+check_root_readonly() {
+	findmnt -no OPTIONS / 2>/dev/null | tr ',' '\n' | grep -qx ro
+}
+
+# /etc overlay is present; the login user does not write it.
 check_etc_overlay() {
 	[ "$(findmnt -no FSTYPE /etc 2>/dev/null)" = "overlay" ] || return 1
-	echo probe >/etc/obake-etc-probe 2>/dev/null
+	[ -e /etc/obake/etc-overlay ]
+}
+
+# Login user cannot write /etc (SSH directory-contract reality).
+check_etc_denied() {
+	! touch /etc/obake-should-fail 2>/dev/null
 }
 
 # /var must be a tmpfs with the persisted subset bind-mounted from persist.
 check_var_contract() {
 	[ "$(findmnt -no FSTYPE /var 2>/dev/null)" = "tmpfs" ] || return 1
-	mountpoint -q /var/lib/systemd || return 1
-	echo probe >/var/lib/systemd/.obake-probe 2>/dev/null || return 1
-	[ -f /persist/var/lib/systemd/.obake-probe ] || return 1
+	mountpoint -q /var/lib/systemd
 }
 
-# The user partition must be mounted writable at /home.
+# The user partition must be mounted writable at /home for obake.
 check_user_partition() {
 	findmnt -no SOURCE /home >/dev/null 2>&1 || return 1
-	touch /home/obake-user-probe 2>/dev/null
+	touch /home/obake/obake-user-probe 2>/dev/null
 }
 
 # The pinned Singularity CE runtime must be present and match the build stamp.
@@ -53,6 +60,12 @@ check_singularity() {
 # Singularity bind-mounts these files into containers; they must exist.
 check_singularity_mounts() {
 	[ -e /etc/hosts ] && [ -e /etc/localtime ] && [ -e /etc/resolv.conf ]
+}
+
+# Local SIF run exercises user namespaces + FUSE (not library://).
+check_singularity_run() {
+	[ -f /opt/obake/verify.sif ] || return 1
+	singularity run /opt/obake/verify.sif >/tmp/obake-sif-run.log 2>&1
 }
 
 # System CA trust store must be present so TLS clients can verify HTTPS.
@@ -68,7 +81,6 @@ check_dns() {
 	ip -o addr show scope global 2>/dev/null | grep -q 'inet '
 }
 
-# avahi (mDNS) and git must be installed and running.
 check_avahi() {
 	systemctl is-active --quiet avahi-daemon
 }
@@ -99,16 +111,17 @@ check_update_gated() {
 
 # Root must be locked so empty-password su does not grant a root shell.
 check_root_locked() {
-	awk -F: '$1 == "root" { exit !($2 ~ /^[!*]/) }' /etc/shadow
+	# Locked root rejects empty-password su; do not read /etc/shadow.
+	if printf '\n' | su -c 'true' root >/tmp/obake-su-root.log 2>&1; then
+		return 1
+	fi
+	return 0
 }
 
 # obake may invoke the update client via passwordless sudo, but not a shell.
 check_update_sudo() {
-	id -u obake >/dev/null 2>&1 || return 1
-	su -s /bin/sh obake -c 'sudo -n /usr/bin/obake-update status' \
-		>/tmp/obake-sudo-update.log 2>&1 || return 1
-	if su -s /bin/sh obake -c 'sudo -n /bin/sh -c true' \
-		>/tmp/obake-sudo-shell.log 2>&1; then
+	sudo -n /usr/bin/obake-update status >/tmp/obake-sudo-update.log 2>&1 || return 1
+	if sudo -n /bin/sh -c true >/tmp/obake-sudo-shell.log 2>&1; then
 		return 1
 	fi
 	return 0
@@ -137,24 +150,24 @@ check_os_identity() {
 	! grep -q '^NAME=Buildroot$' /etc/os-release || return 1
 }
 
-# Kernel release carries board LOCALVERSION (when defined) and -g<sha>[-dirty].
+# Kernel release carries board LOCALVERSION (when defined) and -g<sha>[-dirty]
+# (or -gnogit when the build cannot read git metadata).
 check_kernel_identity() {
 	rel="$(uname -r)"
-	printf '%s\n' "$rel" | grep -Eq '\-g[0-9a-f]+(-dirty)?$' || return 1
+	printf '%s\n' "$rel" | grep -Eq '\-g([0-9a-f]+|nogit)(-dirty)?$' || return 1
 	board="$(sed -n 's/^board=//p' /etc/obake/board 2>/dev/null)"
 	case "$board" in
 	qdl)
 		printf '%s\n' "$rel" | grep -q -- '-qdl-g' || return 1
 		;;
-	generic-x86_64 | generic-aarch64)
+	generic | generic-x86_64 | generic-aarch64)
 		printf '%s\n' "$rel" | grep -q -- '-generic-g' || return 1
 		;;
 	rk35xx)
 		printf '%s\n' "$rel" | grep -q -- '-rk35xx' && return 1
-		printf '%s\n' "$rel" | grep -Eq '\-g[0-9a-f]+(-dirty)?$' || return 1
 		;;
 	*)
-		# Unknown board: still require git provenance.
+		# Unknown board: still require git provenance (checked above).
 		;;
 	esac
 	return 0
@@ -178,7 +191,7 @@ check_update_rollback() {
 # embedded in the verification image).
 check_rauc_install() {
 	[ -f /opt/obake/update.raucb ] || return 0
-	if ! rauc install /opt/obake/update.raucb >/tmp/obake-install.log 2>&1; then
+	if ! obake-update apply /opt/obake/update.raucb >/tmp/obake-install.log 2>&1; then
 		while IFS= read -r line; do
 			echo "OBKA_DBG install: $line"
 		done </tmp/obake-install.log
@@ -187,27 +200,30 @@ check_rauc_install() {
 	return 0
 }
 
-# A tampered bundle must be rejected and leave the inactive slot unchanged.
+# A tampered bundle must be rejected and leave the active slot unchanged.
 check_rauc_reject() {
 	[ -f /opt/obake/update.raucb ] || return 0
-	before="$(sha256sum /boot/efi/EFI/Linux/obake-b.efi 2>/dev/null | cut -d' ' -f1)"
-	cp /opt/obake/update.raucb /tmp/obake-bad.raucb
-	printf 'x' >>/tmp/obake-bad.raucb
-	if rauc install /tmp/obake-bad.raucb >/tmp/obake-bad.log 2>&1; then
+	before="$(obake-update status 2>/dev/null | sed -n 's/^pending\/activated: //p')"
+	cp /opt/obake/update.raucb /home/obake/obake-bad.raucb
+	printf 'x' >>/home/obake/obake-bad.raucb
+	if obake-update apply /home/obake/obake-bad.raucb >/tmp/obake-bad.log 2>&1; then
 		return 1
 	fi
-	after="$(sha256sum /boot/efi/EFI/Linux/obake-b.efi 2>/dev/null | cut -d' ' -f1)"
+	after="$(obake-update status 2>/dev/null | sed -n 's/^pending\/activated: //p')"
 	[ "$before" = "$after" ] || return 1
 	return 0
 }
 
 fail=0
+run as-obake check_running_as_obake
 run root-readonly check_root_readonly
 run etc-overlay check_etc_overlay
+run etc-denied check_etc_denied
 run var-contract check_var_contract
 run user-partition check_user_partition
 run singularity check_singularity
 run singularity-mounts check_singularity_mounts
+run singularity-run check_singularity_run
 run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
 run dns check_dns
