@@ -360,8 +360,12 @@ read `dmesg` and the full journal without a password, and has passwordless sudo
 for all commands (including `sudo -s` and `obake-update`). Without sudo, writes
 to `/etc` and the read-only root still fail. Home data lives under
 `/home/obake`. The root account is locked (no empty-password `su -`); escalate
-with sudo instead. Singularity shapes run as `obake` using user namespaces (no
-setuid helper). See `host-config.md`.
+with sudo instead. Singularity shapes run as `obake` via the setuid helper with
+kernel SquashFS mounts (low-overhead SIF rootfs). On-device
+`singularity build --fakeroot` / `exec --fakeroot` is supported (`/etc/subuid`
+and `/etc/subgid` are seeded for `obake`); current shape `.def` files still use
+`Bootstrap: docker` and may need network pull beyond fakeroot. See
+`host-config.md`.
 
 ## 7. Filesystem layout: read-only root vs writable contract
 

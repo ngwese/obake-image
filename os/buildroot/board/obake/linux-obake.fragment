@@ -50,7 +50,7 @@ CONFIG_TMPFS_XATTR=y
 CONFIG_EXT4_FS=y
 CONFIG_FUSE_FS=y
 
-# Namespaces required by non-setuid Singularity (FUSE SIF mounts use USER_NS).
+# Namespaces for Singularity (setuid fakeroot / optional userns flows).
 CONFIG_NAMESPACES=y
 CONFIG_UTS_NS=y
 CONFIG_IPC_NS=y
@@ -58,6 +58,10 @@ CONFIG_USER_NS=y
 CONFIG_PID_NS=y
 CONFIG_NET_NS=y
 CONFIG_CGROUP_NS=y
+
+# POSIX message queues: Singularity mounts mqueue into the container session
+# (required for --fakeroot on boards whose base config omits it).
+CONFIG_POSIX_MQUEUE=y
 
 # Cgroup controllers for container workloads. Do not enable RT_GROUP_SCHED
 # (conflicts with PREEMPT_RT).

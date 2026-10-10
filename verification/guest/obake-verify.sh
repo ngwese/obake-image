@@ -51,10 +51,23 @@ check_user_partition() {
 }
 
 # The pinned Singularity CE runtime must be present and match the build stamp.
+# Setuid helper + conf must be installed for kernel SquashFS mounts.
+# Avoid `stat -c` — this image's busybox does not provide the stat applet.
 check_singularity() {
 	stamp="$(sed -n 's/^singularity=//p' /etc/obake/singularity 2>/dev/null)"
 	[ -n "$stamp" ] || return 1
-	[ "$(singularity --version 2>/dev/null)" = "singularity-ce version $stamp" ]
+	[ "$(singularity --version 2>/dev/null)" = "singularity-ce version $stamp" ] || return 1
+	suid=/usr/libexec/singularity/bin/starter-suid
+	[ -f "$suid" ] || return 1
+	# Setuid bit set; not writable by obake (implies root-owned 4755).
+	[ -u "$suid" ] || return 1
+	! test -w "$suid" || return 1
+	conf=/etc/singularity/singularity.conf
+	[ -f "$conf" ] || return 1
+	# Conf not writable by obake (root-owned, not group/other-writable).
+	! test -w "$conf" || return 1
+	grep -q '^allow setuid = yes$' "$conf" || return 1
+	grep -q '^allow kernel squashfs = yes$' "$conf" || return 1
 }
 
 # Singularity bind-mounts these files into containers; they must exist.
@@ -62,10 +75,49 @@ check_singularity_mounts() {
 	[ -e /etc/hosts ] && [ -e /etc/localtime ] && [ -e /etc/resolv.conf ]
 }
 
-# Local SIF run exercises user namespaces + FUSE (not library://).
+# Local SIF run must use setuid + kernel SquashFS (not FUSE/squashfuse).
 check_singularity_run() {
 	[ -f /opt/obake/verify.sif ] || return 1
-	singularity run /opt/obake/verify.sif >/tmp/obake-sif-run.log 2>&1
+	if ! singularity -d run /opt/obake/verify.sif >/tmp/obake-sif-run.log 2>&1; then
+		printf 'singularity-run: command failed\n' >&2
+		tail -n 40 /tmp/obake-sif-run.log >&2 || true
+		return 1
+	fi
+	# SingularityCE logs this INFO line only when preparing a FUSE image mount.
+	if grep -F 'Mounting image with FUSE.' /tmp/obake-sif-run.log; then
+		printf 'singularity-run: FUSE mount used\n' >&2
+		return 1
+	fi
+	if grep -Eiq 'squashfuse|falling back to extraction' /tmp/obake-sif-run.log; then
+		printf 'singularity-run: squashfuse/extract fallback\n' >&2
+		return 1
+	fi
+}
+
+# Fakeroot needs seeded /etc/subuid and /etc/subgid for obake.
+check_singularity_fakeroot() {
+	[ -f /opt/obake/verify.sif ] || return 1
+	uid_line="$(grep -E '^obake:[0-9]+:[0-9]+$' /etc/subuid 2>/dev/null)" || {
+		printf 'singularity-fakeroot: missing /etc/subuid mapping\n' >&2
+		return 1
+	}
+	gid_line="$(grep -E '^obake:[0-9]+:[0-9]+$' /etc/subgid 2>/dev/null)" || {
+		printf 'singularity-fakeroot: missing /etc/subgid mapping\n' >&2
+		return 1
+	}
+	uid_count="${uid_line##*:}"
+	gid_count="${gid_line##*:}"
+	[ "$uid_count" -ge 65536 ] 2>/dev/null || return 1
+	[ "$gid_count" -ge 65536 ] 2>/dev/null || return 1
+	out="$(singularity exec --fakeroot /opt/obake/verify.sif id -u 2>/tmp/obake-sif-fakeroot.log)" || {
+		printf 'singularity-fakeroot: exec failed\n' >&2
+		tail -n 40 /tmp/obake-sif-fakeroot.log >&2 || true
+		return 1
+	}
+	[ "$out" = "0" ] || {
+		printf 'singularity-fakeroot: got uid=%s\n' "$out" >&2
+		return 1
+	}
 }
 
 # System CA trust store must be present so TLS clients can verify HTTPS.
@@ -251,6 +303,7 @@ run user-partition check_user_partition
 run singularity check_singularity
 run singularity-mounts check_singularity_mounts
 run singularity-run check_singularity_run
+run singularity-fakeroot check_singularity_fakeroot
 run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
 run dns check_dns

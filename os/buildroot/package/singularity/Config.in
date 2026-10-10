@@ -23,8 +23,8 @@ config BR2_PACKAGE_SINGULARITY
 	  SingularityCE container runtime, built from source at a pinned
 	  version. This is the runtime the shapes run on.
 
-	  Configured without the setuid helper and without libsubid (the host
-	  runs as root), and without the external gettext/python extras.
+	  Built with the setuid helper (kernel SquashFS SIF mounts) and
+	  without libsubid (local /etc/subuid and /etc/subgid only).
 
 comment "singularity-ce needs a toolchain w/ threads, wchar, dynamic library"
 	depends on !BR2_TOOLCHAIN_HAS_THREADS || !BR2_USE_WCHAR || BR2_STATIC_LIBS

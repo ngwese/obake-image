@@ -154,8 +154,10 @@ cat /etc/os-release /etc/issue
 uname -r
 cat /etc/obake/kernel /etc/obake/singularity /etc/obake/board
 singularity --version
-# shapes need USER_NS (non-setuid Singularity); smoke with a local SIF:
+# shapes use setuid + kernel SquashFS; smoke with a local SIF:
 #   singularity run /path/to/shape.sif
+# on-device fakeroot (needs seeded /etc/subuid|/etc/subgid for obake):
+#   singularity exec --fakeroot /path/to/shape.sif id -u
 
 # writable contract (SSH obake: /home yes, /etc no)
 findmnt / /etc /var /home /persist

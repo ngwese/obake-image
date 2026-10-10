@@ -79,13 +79,27 @@ chown 0:0 "${target_dir}/boot" "${target_dir}/boot/efi"
 
 # Files copied from the rootfs overlay keep the build user's ownership; polkit
 # and sshd's StrictModes require root-owned configuration. sudoers.d drop-ins
-# must be mode 0440 or sudo ignores them.
+# must be mode 0440 or sudo ignores them. Singularity setuid refuses a
+# non-root-owned singularity.conf; subuid/subgid are security-sensitive.
 for p in etc/hosts etc/hostname etc/polkit-1 etc/ssh etc/systemd etc/udev \
 	etc/jack etc/security/limits.d etc/sysctl.d etc/tmpfiles.d \
-	etc/sudoers.d usr/lib/systemd; do
+	etc/sudoers.d etc/singularity etc/subuid etc/subgid usr/lib/systemd; do
 	[ -e "${target_dir}/$p" ] || continue
 	chown -R 0:0 "${target_dir}/$p"
 done
 if [ -d "${target_dir}/etc/sudoers.d" ]; then
 	find "${target_dir}/etc/sudoers.d" -type f -exec chmod 0440 {} +
+fi
+if [ -f "${target_dir}/etc/singularity/singularity.conf" ]; then
+	chmod 644 "${target_dir}/etc/singularity/singularity.conf"
+fi
+if [ -f "${target_dir}/usr/libexec/singularity/bin/starter-suid" ]; then
+	chown 0:0 "${target_dir}/usr/libexec/singularity/bin/starter-suid"
+	chmod 4755 "${target_dir}/usr/libexec/singularity/bin/starter-suid"
+fi
+if [ -f "${target_dir}/etc/subuid" ]; then
+	chmod 644 "${target_dir}/etc/subuid"
+fi
+if [ -f "${target_dir}/etc/subgid" ]; then
+	chmod 644 "${target_dir}/etc/subgid"
 fi

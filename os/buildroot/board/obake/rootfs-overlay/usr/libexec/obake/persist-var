@@ -21,3 +21,7 @@ while IFS= read -r path; do
 		mount --bind "$src" "$dst"
 	fi
 done <"$list"
+
+# Singularity's session dir lives under /var/lib/singularity. The persist bind
+# of lib/singularity starts empty and would hide the image-seeded mnt/session.
+mkdir -p /var/lib/singularity/mnt/session
