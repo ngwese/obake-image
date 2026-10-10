@@ -378,6 +378,7 @@ lives in a named, persistent location backed by the persist or user partition.
 | `/etc`      | overlay upper on `/persist`    | boot, slot switch       |
 | `/var`      | tmpfs, with a persisted subset | boot, slot switch for the subset |
 | `/media`    | tmpfs (removable mount root)   | nothing (discarded)     |
+| `/tmp`      | tmpfs (volatile; device nodes allowed) | nothing (discarded) |
 | `/home`     | `OBKA_USER` partition          | updates, reinstalls     |
 | `/persist`  | `OBKA_PERSIST` partition       | boot, slot switch       |
 

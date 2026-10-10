@@ -28,6 +28,7 @@ mounted read-only.
 | `/var` (subset)    | bind mount from `/persist/var`   | boot, slot switch      |
 | `/var` (other)     | tmpfs                            | nothing (discarded)    |
 | `/media`           | tmpfs (mountpoint root)          | nothing (discarded)    |
+| `/tmp`             | tmpfs (`nosuid`; device nodes allowed) | nothing (discarded) |
 | `/home`            | `OBKA_USER` partition            | updates, reinstalls    |
 | `/persist`         | `OBKA_PERSIST` partition         | boot, slot switch      |
 
@@ -57,6 +58,13 @@ log
 `log` covers the system journal (`log/journal`) and login accounting
 (`/var/log/wtmp`, `btmp`, `lastlog`) so `last` history survives reboot and
 slot switch.
+
+### `/tmp`
+
+`/tmp` is a separate volatile tmpfs, mounted by systemd's `tmp.mount` with an
+image drop-in that keeps `nosuid` and allows device nodes. Contents are
+discarded on boot and are not part of the persisted `/var` subset. Singularity
+uses this directory as its default build sandbox.
 
 ### persist partition
 
@@ -155,7 +163,8 @@ mounted under `/media`.
 
 ## Verification
 
-- `verification/qemu/persist-test.sh` — writes markers under `/etc`, `/var`, and
-  `/home`, reboots, and switches slots, asserting the contract above.
+- `verification/qemu/persist-test.sh` — writes markers under `/etc`, `/var`,
+  `/tmp`, and `/home`, reboots, and switches slots, asserting the contract
+  above.
 - `verification/qemu/ssh-test.sh` — logs in over SSH and checks the directory
   contract, polkit systemd/power control, and `dmesg`/journal read access.

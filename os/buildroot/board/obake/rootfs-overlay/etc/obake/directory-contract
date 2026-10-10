@@ -6,3 +6,4 @@
 # /home                  user partition (survives updates and reinstalls)
 # /persist               persist partition
 # /media                 volatile tmpfs; removable-media mount root
+# /tmp                   volatile tmpfs; discarded on boot (not persisted)

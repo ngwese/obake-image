@@ -94,6 +94,44 @@ check_singularity_run() {
 	fi
 }
 
+# /tmp must be a nosuid tmpfs that still allows device nodes, and a default
+# fakeroot build (no temporary-directory override) must not warn about that.
+check_tmp_singularity_build() {
+	[ -f /opt/obake/verify.sif ] || return 1
+	[ "$(findmnt -no FSTYPE /tmp 2>/dev/null)" = "tmpfs" ] || return 1
+	opts="$(findmnt -no OPTIONS /tmp 2>/dev/null)" || return 1
+	printf '%s\n' "$opts" | tr ',' '\n' | grep -qx nosuid || return 1
+	if printf '%s\n' "$opts" | tr ',' '\n' | grep -qx nodev; then
+		printf 'tmp-singularity-build: nodev on /tmp\n' >&2
+		return 1
+	fi
+	if printf '%s\n' "$opts" | tr ',' '\n' | grep -qx noexec; then
+		printf 'tmp-singularity-build: noexec on /tmp\n' >&2
+		return 1
+	fi
+	touch /tmp/obake-tmp-probe 2>/dev/null || return 1
+	rm -f /tmp/obake-tmp-probe
+
+	def=/tmp/obake-nodev.def
+	out=/tmp/obake-nodev.sif
+	log=/tmp/obake-nodev.log
+	cat >"$def" <<'EOF'
+Bootstrap: localimage
+From: /opt/obake/verify.sif
+EOF
+	unset TMPDIR SINGULARITY_TMPDIR APPTAINER_TMPDIR
+	if ! singularity build --fakeroot --force "$out" "$def" >"$log" 2>&1; then
+		printf 'tmp-singularity-build: build failed\n' >&2
+		tail -n 40 "$log" >&2 || true
+		return 1
+	fi
+	if grep -F "'nodev' mount option set on /tmp" "$log"; then
+		printf 'tmp-singularity-build: nodev warning\n' >&2
+		return 1
+	fi
+	[ -f "$out" ]
+}
+
 # Fakeroot needs seeded /etc/subuid and /etc/subgid for obake.
 check_singularity_fakeroot() {
 	[ -f /opt/obake/verify.sif ] || return 1
@@ -304,6 +342,7 @@ run singularity check_singularity
 run singularity-mounts check_singularity_mounts
 run singularity-run check_singularity_run
 run singularity-fakeroot check_singularity_fakeroot
+run tmp-singularity-build check_tmp_singularity_build
 run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
 run dns check_dns
