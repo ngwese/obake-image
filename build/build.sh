@@ -4,6 +4,7 @@
 # Usage:
 #   build.sh <board> [profile] --installer|--update [--] [make-args...]
 #   build.sh --print-dir <board> [profile]
+#   build.sh --help
 #
 #   board     generic-aarch64 | generic-x86_64 | qdl | rk35xx
 #   profile   default (physical board) | virtual (emulation/verification);
@@ -13,9 +14,8 @@
 #
 # The target architecture follows from the board. Artifacts stage under
 # image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/ override with
-# OBAKE_OUTDIR. Build knobs (VERIFY*, BREAK, MAKE_DISK, MAKE_INSTALLER,
-# IMAGE_TAG, RAUC_SIGNING_*, OBKA_SSH_AUTHORIZED_KEY, OBKA_PASSWORD, ...) are
-# forwarded; an explicit setting wins over product defaults where noted.
+# OBAKE_OUTDIR. Build-time environment variables are listed by --help; an
+# explicit setting wins over product defaults where noted.
 #
 # On a host with Docker the build runs in the native build container as the
 # invoking user. On a Linux host without Docker the Buildroot build runs
@@ -33,8 +33,108 @@ usage() {
 	printf 'boards: generic-aarch64 generic-x86_64 qdl rk35xx\n' >&2
 	printf 'profiles: default virtual\n' >&2
 	printf 'product: --installer (flash media) | --update (RAUC bundles)\n' >&2
+	printf 'Try %s --help for environment variables.\n' "$0" >&2
 	exit 2
 }
+
+show_help() {
+	cat <<EOF
+Usage:
+  $0 <board> [profile] --installer|--update [--] [make-args...]
+  $0 --print-dir <board> [profile]
+  $0 --help
+
+Arguments:
+  board      generic-aarch64 | generic-x86_64 | qdl | rk35xx
+  profile    default (physical) | virtual (emulation/verification);
+             defaults to default when omitted
+  --installer  emit installer media (and disk image); bake/use dev signing
+  --update     emit signed RAUC bundles only (no installer/disk by default)
+  make-args    forwarded to Buildroot make (e.g. -jN, singularity-dirclean)
+
+Artifacts stage under
+  image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]
+unless OBAKE_OUTDIR is set. Product flags set MAKE_* defaults; an explicit
+environment value wins where noted below.
+
+Environment variables (build-time knobs):
+
+  Paths / cache
+    OBAKE_OUTDIR           Host staging directory for artifacts
+    OBAKE_WORK             Buildroot work tree (default: container
+                           /cache/buildroot, or image/_build/buildroot)
+    OBAKE_OUT              Buildroot output dir for the board
+                           (default: \$OBAKE_WORK/output/<board>)
+    DL_DIR                 Buildroot download cache
+    LAYOUT                 Partition layout JSON (default: verify layout
+                           under image/os/; release builds override)
+    OBKA_BUILD_IMAGE       Docker image name (default: obake-buildroot-env)
+    OBKA_BUILD_VOLUME      Docker volume for the build cache
+                           (default: obake-buildroot-cache)
+
+  Product / media (product flags set defaults when unset)
+    MAKE_INSTALLER         1=build installer media (installer product: 1)
+    MAKE_DISK              1=assemble disk-*.img (--update default: 0)
+    MAKE_BUNDLE            1=emit signed .raucb (--installer default: 0,
+                           --update default: 1)
+    BUNDLE_SLOT            a|b to emit one slot bundle; unset = both
+    DISK_SLOT              Slot letter for disk-*.img (default: a)
+    DISK_ALIGN_MIB         Disk alignment / boot region size in MiB
+    USER_SIZE_MIB          User partition size in MiB (default: 2048
+                           via post-image; make-disk default differs)
+    CONSOLE                serial|local (installer + installed UKI console;
+                           default from board profile)
+    INSTALLER_TARGET_DISK  Installer target disk (profile default, else
+                           /dev/vdb)
+    INSTALLER_PRESERVE_USER
+                           1=preserve user partition on reinstall (default: 1)
+    INSTALLER_POWEROFF_DELAY
+                           Seconds before installer poweroff (default: 10)
+    RAW_BOOTLOADER         Optional raw bootloader image for make-disk
+
+  Signing (unset paths get image/_build/signing development material)
+    RAUC_SIGNING_CERT      Bundle signing certificate
+    RAUC_SIGNING_KEY       Bundle signing private key
+    RAUC_KEYRING           CA bundle baked into the image for updates
+    OBKA_SIGNING_KEY       Optional key for artifact .sig files
+
+  Image content
+    IMAGE_TAG              Extra tag stamped into the image identity
+    OBAKE_IMAGE_VERSION    Override image version (else VERSION file)
+    OBKA_IMAGE_VERSION     Alias forwarded into the build container
+    OBKA_SSH_AUTHORIZED_KEY
+                           Path to public key baked for obake SSH
+    OBKA_PASSWORD          Build-time password for obake (enables SSH
+                           password auth); empty/unset = key-only
+    LOCAL_BUNDLE           Path written into /etc/obake/update.conf
+    UPDATE_URL             URL written into /etc/obake/update.conf
+    MOCK_HEALTH            Health-check mock for VERIFY_HEALTH images
+    HEALTH_MAX_ATTEMPTS    Health-check attempt limit (default: 3)
+
+  Verification image (VERIFY=1 installs guest checks)
+    VERIFY                 1=install base guest functional checks
+    VERIFY_HEALTH          1=health/update guest checks
+    VERIFY_PERSIST         1=persist guest checks
+    VERIFY_UPDATE          1=update guest checks
+    VERIFY_INTEGRATION     1=integration guest checks
+    VERIFY_INTEGRATION_SEED
+                           1=seed integration fixtures
+    VERIFY_UPDATE_BUNDLE   Path to update.raucb embedded for checks
+    VERIFY_INTEGRATION_GOOD
+                           Path to good.raucb for integration checks
+    VERIFY_INTEGRATION_BAD Path to bad.raucb for integration checks
+    BREAK                  Inject a deliberate fault (ro|etc|var|user)
+
+  Set by this script (override only if you know why)
+    OBAKE_BOARD            Board name passed to Buildroot hooks
+    OBAKE_PROFILE          Profile name (default|virtual)
+EOF
+	exit 0
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+	show_help
+fi
 
 print_dir=0
 if [ "${1:-}" = "--print-dir" ]; then
