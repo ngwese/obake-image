@@ -41,11 +41,19 @@ obka_arch_dir() {
 	bash "$buildsh" --print-dir "$board" virtual
 }
 
+# obka_check_artifact_version <dir> -> fail unless pinned-inputs image_version
+# matches the staged VERSION stamp.
+obka_check_artifact_version() {
+	local dir="${1:?usage: obka_check_artifact_version <artifact-dir>}"
+	bash "$image_root/verification/check-artifact-version.sh" "$dir"
+}
+
 # obka_build [arch] -> builds the virtual profile if needed and prints the
 # artifact directory.
 obka_build() {
 	local arch="${1:-native}" board dir
 	if [ -n "${OBKA_ARTIFACTS:-}" ]; then
+		obka_check_artifact_version "$OBKA_ARTIFACTS" >&2
 		printf '%s' "$OBKA_ARTIFACTS"
 		return
 	fi
@@ -54,6 +62,7 @@ obka_build() {
 	if [ ! -f "$dir/disk-a.img" ] || [ "${OBKA_REBUILD:-0}" = "1" ]; then
 		bash "$buildsh" "$board" virtual >&2
 	fi
+	obka_check_artifact_version "$dir" >&2
 	printf '%s' "$dir"
 }
 

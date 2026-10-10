@@ -146,6 +146,19 @@ if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
 		exit 1
 		;;
 	esac
+	# Drop prior-version bundles left in the persistent images tree so staging
+	# does not publish stale obake-<old>-*.raucb alongside the current ones.
+	for stale in "$binaries"/obake-*.raucb; do
+		[ -f "$stale" ] || continue
+		base="$(basename "$stale")"
+		case "$base" in
+		obake-"$version"-*.raucb) ;;
+		*)
+			log "removing stale bundle $base"
+			rm -f "$stale"
+			;;
+		esac
+	done
 	for bundle_slot in $bundle_slots; do
 		log "building signed update bundle for slot $bundle_slot"
 		rm -f "$binaries/obake-$version-$bundle_slot.raucb"

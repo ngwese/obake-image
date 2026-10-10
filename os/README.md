@@ -99,9 +99,12 @@ selects Python solely for `jack_control`.
 Because `jackdbus` is D-Bus activated, the overlay also provides a per-user
 session bus for `obake`: the standard systemd user `dbus.socket`/`dbus.service`
 units (Buildroot does not package them), enabled on the user manager, with the
-manager started at boot by `obake-linger.service`. `org.jackaudio.service` is
-then activatable on `unix:path=/run/user/<uid>/bus`, which the future
-`obake-launcher` will use to activate and configure `jackd` over D-Bus.
+manager started at boot by `obake-linger.service`. Login shells pick up
+`XDG_RUNTIME_DIR` / `DBUS_SESSION_BUS_ADDRESS` from
+`/etc/profile.d/obake-user-bus.sh` (no PAM), so `systemctl --user` works over
+SSH. `org.jackaudio.service` is then activatable on
+`unix:path=/run/user/<uid>/bus`, which the future `obake-launcher` will use to
+activate and configure `jackd` over D-Bus.
 
 `rtkit` is not included: Buildroot has no `rtkit` package, and realtime
 scheduling and locked memory are provided by the `limits.d` grants and the
@@ -211,8 +214,14 @@ The `board/obake/post-image.sh` hook then emits, from `partition-layout.json`:
 - `obake-<slot>.efi` — per-slot unified kernel images (`ukify`);
 - `root-<slot>.img` / `root-<slot>.tar` — per-slot root artifacts;
 - `disk-<slot>.img` — bootable disk for each active slot (`scripts/make-disk.sh`);
-- `VERSION`, `SHA256SUMS`, `image-manifest.json`, and, when `OBKA_SIGNING_KEY`
-  is set, `*.sig` (`scripts/sign.sh`).
+- `VERSION`, `SHA256SUMS`, `image-manifest.json`, `pinned-inputs.json`, and,
+  when `OBKA_SIGNING_KEY` is set, `*.sig` (`scripts/sign.sh`);
+- when RAUC signing material is set, `obake-<version>-<slot>.raucb` update
+  bundles (prior-version `obake-*.raucb` leftovers are removed first).
+
+`pinned-inputs.json` `image_version` uses the same resolution as
+`/etc/obake/image-version` (`OBAKE_IMAGE_VERSION`, else the baked rootfs
+value, else `buildroot/VERSION`).
 
 `ukify` comes from `host-systemd`. The x86_64 build gets its systemd EFI stub
 in-tree (`BR2_PACKAGE_SYSTEMD_BOOT`); the aarch64 stub is pinned in

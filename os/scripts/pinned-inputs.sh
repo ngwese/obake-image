@@ -31,9 +31,21 @@ if [ -n "$target" ] && [ -f "$target/etc/obake/kernel" ]; then
 	kernel_built="$(sed -n 's/^image=//p' "$target/etc/obake/kernel")"
 fi
 
+# Same resolution as post-build/post-image: override, baked rootfs, VERSION file.
+if [ -n "${OBAKE_IMAGE_VERSION:-}" ]; then
+	image_version="$OBAKE_IMAGE_VERSION"
+elif [ -n "$target" ] && [ -f "$target/etc/obake/image-version" ]; then
+	image_version="$(tr -d '[:space:]' <"$target/etc/obake/image-version")"
+elif [ -f "$brroot/VERSION" ]; then
+	image_version="$(tr -d '[:space:]' <"$brroot/VERSION")"
+else
+	image_version="0.0.0"
+fi
+[ -n "$image_version" ] || image_version="0.0.0"
+
 mkdir -p "$out"
 python3 - "$pins" "$out/pinned-inputs.json" "$board" "$arch" \
-	"$sing_ver" "$jack2_ver" "$kernel_built" "${OBAKE_IMAGE_VERSION:-0.0.0}" <<'PY'
+	"$sing_ver" "$jack2_ver" "$kernel_built" "$image_version" <<'PY'
 import json, sys
 
 pins_path, out_path, board, arch, sing, jack2, kernel_built, image_version = sys.argv[1:9]

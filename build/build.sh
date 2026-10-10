@@ -177,6 +177,7 @@ if command -v docker >/dev/null 2>&1; then
 	# build and would otherwise accumulate in the build volume.
 	docker run --rm -v "$volume":/cache "$image" sh -c \
 		"rm -rf $work_in_container/output/$board/images/disk-*.img \
+			$work_in_container/output/$board/images/obake-*.raucb \
 			$work_in_container/output/$board/images/.disk-work \
 			$work_in_container/output/$board/images/.installer \
 			$work_in_container/output/$board/images/.initramfs" \
