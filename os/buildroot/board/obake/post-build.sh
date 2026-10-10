@@ -218,6 +218,11 @@ if [ -n "${LOCAL_BUNDLE:-}" ] || [ -n "${UPDATE_URL:-}" ]; then
 		"${UPDATE_URL:-}" "${LOCAL_BUNDLE:-}" >"${target_dir}/etc/obake/update.conf"
 fi
 
+# Shared EFI slot reconcile, also used by the installer image (a copy of
+# this rootfs). install.sh and efi-entries.sh both exec this path.
+install -D -m 0755 "${extroot}/../scripts/efi-boot-entries.sh" \
+	"${target_dir}/usr/libexec/obake/efi-boot-entries.sh"
+
 # Install verification guest checks and apply any BREAK fault injection.
 bash "${extroot}/board/obake/install-verify.sh" "$target_dir"
 

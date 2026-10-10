@@ -184,6 +184,13 @@ slots (`bootname=A/B`), and the `boot.0/1` raw slots for the per-slot UKIs on
 the ESP. Slot state lives on the persist partition
 (`statusfile=/persist/rauc/status`).
 
+Each slot has one active EFI boot entry, labeled `A` or `B`, pointing at
+`\EFI\Linux\obake-a.efi` or `obake-b.efi` on the current ESP.
+`obake-efi-entries.service` removes every other `A` or `B` entry (duplicates,
+inactive options, and entries left from an older disk) before RAUC starts.
+When `BootNext` is set, that boot leaves `BootOrder` unchanged so a pending
+slot switch still applies. Otherwise it places the booted slot first.
+
 ## Verification
 
 `verification/qemu/health-test.sh pass|revert` exercises the health gate:

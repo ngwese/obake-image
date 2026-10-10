@@ -201,7 +201,7 @@ EOF
 }
 
 install_boot() {
-  local esp="/run/obka-esp" slot boot_dst part a b
+  local esp="/run/obka-esp" slot boot_dst part helper
   log "installing bootloader UKIs and EFI boot entries"
   case "$(uname -m)" in
   x86_64) boot_dst="BOOTX64.EFI" ;;
@@ -233,17 +233,11 @@ install_boot() {
   fi
 
   part="$(order_of esp)"
-  efibootmgr -q -c -d "$disk" -p "$part" -L A -l '\EFI\Linux\obake-a.efi' 2>/dev/null || true
-  efibootmgr -q -c -d "$disk" -p "$part" -L B -l '\EFI\Linux\obake-b.efi' 2>/dev/null || true
-  a="$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} A$/\1/p' | head -1)"
-  b="$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} B$/\1/p' | head -1)"
-  if [ -n "$a" ] && [ -n "$b" ]; then
-    if [ "$active_slot" = "a" ]; then
-      efibootmgr -q -o "$a,$b" 2>/dev/null || true
-    else
-      efibootmgr -q -o "$b,$a" 2>/dev/null || true
-    fi
-  fi
+  # One active A and one active B on this ESP. --force-order applies even
+  # when a previous BootNext is still set.
+  helper=/usr/libexec/obake/efi-boot-entries.sh
+  [ -x "$helper" ] || die "EFI boot helper missing: $helper"
+  "$helper" --disk "$disk" --part "$part" --prefer "$active_slot" --force-order
 }
 
 seed_persist() {

@@ -18,7 +18,9 @@ the generated `partition-layout.env`). Verified headlessly by
 2. Require explicit confirmation before any destructive action.
 3. Apply the layout from `../os/partition-layout.json` (stable labels and GUIDs).
 4. Create filesystems and write both root slots from `IMAGES_DIR`.
-5. Install systemd-boot and the per-slot unified kernel images to the ESP.
+5. Install the per-slot unified kernel images to the ESP and reconcile one
+   active EFI boot entry per slot (`A` and `B`) on that ESP, with the
+   install's active slot first. A reinstall leaves a single pair.
 6. Seed the persist partition (machine-id, SSH host keys, hostname, network
    configuration) and create the user partition.
 7. Print `OBKA_INSTALL_DONE`, which the QEMU harness matches.
