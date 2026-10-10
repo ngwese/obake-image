@@ -137,9 +137,12 @@ ensure_dev_signing() {
 case "$product" in
 installer)
 	export MAKE_INSTALLER=1
+	if [ -z "${MAKE_BUNDLE+x}" ]; then
+		export MAKE_BUNDLE=0
+	fi
 	ensure_dev_signing
-	printf '[build] product installer: MAKE_INSTALLER=1 (dev signing defaults)\n' \
-		>&2
+	printf '[build] product installer: MAKE_INSTALLER=1 MAKE_BUNDLE=%s (dev signing defaults)\n' \
+		"${MAKE_BUNDLE}" >&2
 	;;
 update)
 	if [ -z "${MAKE_INSTALLER+x}" ]; then
@@ -148,9 +151,12 @@ update)
 	if [ -z "${MAKE_DISK+x}" ]; then
 		export MAKE_DISK=0
 	fi
+	if [ -z "${MAKE_BUNDLE+x}" ]; then
+		export MAKE_BUNDLE=1
+	fi
 	ensure_dev_signing
-	printf '[build] product update: MAKE_INSTALLER=%s MAKE_DISK=%s (dev signing defaults)\n' \
-		"${MAKE_INSTALLER}" "${MAKE_DISK}" >&2
+	printf '[build] product update: MAKE_INSTALLER=%s MAKE_DISK=%s MAKE_BUNDLE=%s (dev signing defaults)\n' \
+		"${MAKE_INSTALLER}" "${MAKE_DISK}" "${MAKE_BUNDLE}" >&2
 	;;
 esac
 
@@ -222,6 +228,7 @@ if command -v docker >/dev/null 2>&1; then
 	# and other scratch directories) straight into the host output directory.
 	rm -rf "$out"
 	mkdir -p "$out"
+	printf '[build] staging artifacts...\n' >&2
 	docker run --rm --user "$(id -u):$(id -g)" \
 		-v "$volume":/cache -v "$out":/out \
 		-e "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
@@ -235,6 +242,7 @@ if command -v docker >/dev/null 2>&1; then
 		"
 	# Drop large derived images from the cache tree; they are regenerated each
 	# build and would otherwise accumulate in the build volume.
+	printf '[build] removing derived images from build cache...\n' >&2
 	docker run --rm -v "$volume":/cache "$image" sh -c \
 		"rm -rf $work_in_container/output/$board/images/disk-*.img \
 			$work_in_container/output/$board/images/installer*.img \
@@ -253,10 +261,46 @@ else
 	stage_images "$work/output/$board/images"
 fi
 
+# Console for this build: an explicit CONSOLE wins, otherwise the profile.
+installer_console() {
+	local profile_file line key val
+	if [ -n "${CONSOLE:-}" ]; then
+		printf '%s' "$CONSOLE"
+		return
+	fi
+	profile_file="$image_root/os/buildroot/profiles/$board/$profile.conf"
+	[ -f "$profile_file" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		case "$line" in
+		'' | \#*) continue ;;
+		esac
+		key="${line%%=*}"
+		val="${line#*=}"
+		if [ "$key" = CONSOLE ]; then
+			printf '%s' "$val"
+			return
+		fi
+	done <"$profile_file"
+}
+
 # --update must not publish stale installer/disk images left in the Buildroot
 # images tree from an earlier --installer build of the same board output.
 if [ "$product" = "update" ]; then
 	rm -f "$out"/installer*.img "$out"/disk-*.img
+fi
+
+# Installer product keeps only this build's installer image and, unless
+# MAKE_BUNDLE=1, does not publish update bundles left in the images tree.
+if [ "${MAKE_BUNDLE:-0}" != 1 ]; then
+	rm -f "$out"/*.raucb
+fi
+if [ "$product" = installer ]; then
+	keep="installer-$(installer_console).img"
+	for f in "$out"/installer*.img; do
+		[ -f "$f" ] || continue
+		[ "$(basename "$f")" = "$keep" ] && continue
+		rm -f "$f"
+	done
 fi
 
 print_artifacts

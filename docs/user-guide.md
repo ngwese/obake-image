@@ -164,7 +164,7 @@ path) or left in the Buildroot work tree under `image/_build/`
 | `disk-<slot>.img`                | bootable disk for a slot                  |
 | `installer-<console>.img`        | installer medium, when `MAKE_INSTALLER=1` |
 | `VERSION`, `SHA256SUMS`, `image-manifest.json`, `pinned-inputs.json` | version, hashes, inputs |
-| `*.raucb`                        | signed update bundle, when signing is set |
+| `*.raucb`                        | signed update bundle from `--update`      |
 
 The `../os/README.md` "Outputs" section lists the signing and disk assembly
 scripts (`make-disk.sh`, `make-bundle.sh`, `sign.sh`).

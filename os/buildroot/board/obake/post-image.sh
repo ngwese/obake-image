@@ -132,11 +132,12 @@ if [ "${MAKE_INSTALLER:-0}" = "1" ]; then
 	bash "$here/make-installer.sh" "$binaries"
 fi
 
-# Signed update bundles, when signing material is set. Each bundle carries one
-# slot's rootfs and UKI (and thus that slot's root cmdline). Default is both
-# slots so a host on either A or B can be updated; set BUNDLE_SLOT=a|b to emit
-# only one (verification harnesses use that).
-if [ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
+# Signed update bundles when MAKE_BUNDLE=1 and signing material is set.
+# Signing keys alone do not request bundles (the installer product sets them
+# for the image keyring). Each bundle carries one slot's rootfs and UKI.
+# Default is both slots; set BUNDLE_SLOT=a|b to emit only one.
+if [ "${MAKE_BUNDLE:-0}" = "1" ] &&
+	[ -n "${RAUC_SIGNING_CERT:-}" ] && [ -n "${RAUC_SIGNING_KEY:-}" ]; then
 	case "${BUNDLE_SLOT:-}" in
 	a | b) bundle_slots="$BUNDLE_SLOT" ;;
 	'') bundle_slots="a b" ;;
