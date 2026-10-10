@@ -371,6 +371,7 @@ lives in a named, persistent location backed by the persist or user partition.
 | `/` (root)  | read-only slot                 | replaced by an update   |
 | `/etc`      | overlay upper on `/persist`    | boot, slot switch       |
 | `/var`      | tmpfs, with a persisted subset | boot, slot switch for the subset |
+| `/media`    | tmpfs (removable mount root)   | nothing (discarded)     |
 | `/home`     | `OBKA_USER` partition          | updates, reinstalls     |
 | `/persist`  | `OBKA_PERSIST` partition       | boot, slot switch       |
 
@@ -408,7 +409,9 @@ automatically.
 2. **Copy the bundle to the USB drive.** Place the `*.raucb` file at the root
    of any partition, or one directory deep. FAT/FAT32 and exFAT are supported.
    When the stick is attached, it auto-mounts for `obake` at `/media/<label>`
-   (filesystem label, or a stable fallback if unlabeled).
+   (filesystem label, or a stable fallback if unlabeled). `/media` is a
+   volatile tmpfs mount root on the read-only image; do not create mountpoints
+   by hand on the slot root.
 
 3. **Apply it on the host.**
 

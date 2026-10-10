@@ -1,0 +1,12 @@
+[Unit]
+Description=Auto-mount removable media %i for obake
+Documentation=file:/etc/obake/directory-contract
+BindsTo=dev-%i.device
+After=dev-%i.device local-fs.target
+RequiresMountsFor=/media
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/obake/media-automount add %i
+ExecStop=/usr/libexec/obake/media-automount remove %i

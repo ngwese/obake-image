@@ -37,8 +37,9 @@ accepts bundles from two sources using the same format and signature check:
 
 - **USB media** — preferred when a bundle is present on auto-mounted removable
   media under `/media/<label>` (filesystem label, with a stable fallback when
-  unlabeled), so airgapped and AoIP-only hosts can be updated. FAT/FAT32 and
-  exFAT sticks are supported.
+  unlabeled), so airgapped and AoIP-only hosts can be updated. `/media` is a
+  volatile tmpfs mount root; volumes are mounted in the host namespace for
+  `obake` and Singularity binds. FAT/FAT32 and exFAT sticks are supported.
 - **A configured HTTP/HTTPS endpoint** — the `https_url` setting. For TLS, set
   `tls_cacert` to the endpoint's CA certificate (or `tls_insecure=1` for a
   development service).

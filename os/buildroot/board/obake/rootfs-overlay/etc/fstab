@@ -1,3 +1,4 @@
 tmpfs                  /var           tmpfs   mode=0755                 0      0
+tmpfs                  /media         tmpfs   mode=0755,nosuid,nodev,noexec 0  0
 LABEL=OBKA_USER        /home          ext4    defaults,noatime,x-systemd.growfs 0 2
-LABEL=OBKA_ESP         /boot/efi      vfat    umask=0077                0      2
+LABEL=OBKA_ESP         /boot/efi      vfat    umask=0022                0      2

@@ -71,6 +71,12 @@ if [ -f "$shadow" ]; then
 	printf '[post-fakeroot] root account locked\n' >&2
 fi
 
+# ESP mountpoint hierarchy must be traversable by obake so diagnostics (df)
+# can resolve /boot/efi. Mode is enforced here; post-build.sh creates the dirs.
+install -d -m 0755 -o 0 -g 0 "${target_dir}/boot" "${target_dir}/boot/efi"
+chmod 0755 "${target_dir}/boot" "${target_dir}/boot/efi"
+chown 0:0 "${target_dir}/boot" "${target_dir}/boot/efi"
+
 # Files copied from the rootfs overlay keep the build user's ownership; polkit
 # and sshd's StrictModes require root-owned configuration. sudoers.d drop-ins
 # must be mode 0440 or sudo ignores them.

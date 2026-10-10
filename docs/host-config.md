@@ -9,8 +9,10 @@ For the end-to-end setup flow that installs and uses this contract, see
 The contract is provided by the Buildroot image: the initramfs mounts the root
 slot by label and overlays `/etc` from the persist partition before handing off
 to systemd; `fstab` mounts `/var` as tmpfs with its persisted subset bound from
-persist, the user partition at `/home`, and the ESP at `/boot/efi`. Verified
-headlessly by `verification/qemu/persist-test.sh` and `verify-test.sh`.
+persist, the user partition at `/home`, and the ESP at `/boot/efi` (VFAT with
+`umask=0022` so `obake` can read and list the mount without sudo; writes stay
+root-owned). Verified headlessly by `verification/qemu/persist-test.sh` and
+`verify-test.sh`.
 
 ## Read-only root
 
@@ -25,6 +27,7 @@ mounted read-only.
 | `/etc`             | overlay upper on `/persist`      | boot, slot switch      |
 | `/var` (subset)    | bind mount from `/persist/var`   | boot, slot switch      |
 | `/var` (other)     | tmpfs                            | nothing (discarded)    |
+| `/media`           | tmpfs (mountpoint root)          | nothing (discarded)    |
 | `/home`            | `OBKA_USER` partition            | updates, reinstalls    |
 | `/persist`         | `OBKA_PERSIST` partition         | boot, slot switch      |
 
@@ -81,9 +84,10 @@ preserves user data.
 ## Directory contract
 
 `/etc/obake/directory-contract` names the mounts that are system-writable for
-host configuration and user data: `/etc`, `/var`, `/home`, and `/persist`.
-Everything else on the root is read-only. System services (and root) write the
-`/etc` overlay and other contract mounts; the `obake` SSH login is narrower.
+host configuration and user data: `/etc`, `/var`, `/media`, `/home`, and
+`/persist`. Everything else on the root is read-only. System services (and
+root) write the `/etc` overlay and other contract mounts; the `obake` SSH
+login is narrower.
 
 Users connect over SSH as the `obake` account (home `/home/obake` on the user
 partition). Authorized keys are read from `/etc/ssh/authorized_keys.d/<user>` so
@@ -125,11 +129,15 @@ kernel-log grant is a sysctl and the journal grant is filesystem group access.
 
 ### Removable media
 
-USB and other removable filesystem partitions are auto-mounted for `obake`
-under `/media/<label>`, where `<label>` is the filesystem label when present
+`/media` is a volatile tmpfs mount root (same idea as `/var`): mountpoint
+directories can be created despite the read-only OS image. USB and other
+removable filesystem partitions are auto-mounted for `obake` under
+`/media/<label>`, where `<label>` is the filesystem label when present
 (sanitized), or a stable fallback from UUID / PARTUUID / device name when
-unlabeled. MS-DOS FAT, FAT32 (VFAT), and exFAT are supported in the kernel.
-`obake-update` prefers bundles already mounted under `/media`.
+unlabeled. Mounts land in the host mount namespace so they are visible to
+`obake` and to Singularity binds of `/media`. MS-DOS FAT, FAT32 (VFAT), and
+exFAT are supported in the kernel. `obake-update` prefers bundles already
+mounted under `/media`.
 
 ## Verification
 

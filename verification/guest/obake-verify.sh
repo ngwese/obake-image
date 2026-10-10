@@ -103,6 +103,21 @@ check_rauc_status() {
 	printf '%s\n' "$out" | grep -q 'rootfs.1' || return 1
 }
 
+# ESP must be readable/listable by obake without sudo (df, ls /boot/efi).
+# Non-root write must still fail; ownership stays root via VFAT uid=0.
+check_esp_access() {
+	findmnt -no SOURCE /boot/efi >/dev/null 2>&1 || return 1
+	[ -x /boot ] || return 1
+	[ -r /boot/efi ] || return 1
+	ls /boot/efi >/dev/null 2>&1 || return 1
+	probe="/boot/efi/.obake-esp-writetest-$$"
+	if touch "$probe" 2>/dev/null; then
+		rm -f "$probe" 2>/dev/null || true
+		return 1
+	fi
+	return 0
+}
+
 # Updates are user-initiated: no enabled unit may run the client automatically.
 check_update_gated() {
 	! grep -rqsE 'obake-update[[:space:]]+apply' \
@@ -125,11 +140,18 @@ check_update_sudo() {
 	return 0
 }
 
-# Removable-media automount path is present (USB insert is hardware-dependent).
+# Removable-media automount path is ready (USB insert is hardware-dependent).
+# /media must be a writable mount root, not a directory on the read-only root.
 check_media_automount() {
 	[ -x /usr/libexec/obake/media-automount ] || return 1
 	[ -f /etc/udev/rules.d/99-obake-media-automount.rules ] || return 1
-	[ -d /media ] || return 1
+	[ -f /etc/systemd/system/obake-media-automount@.service ] ||
+		[ -f /usr/lib/systemd/system/obake-media-automount@.service ] || return 1
+	findmnt -n /media >/dev/null 2>&1 || return 1
+	probe="/media/.obake-media-writetest-$$"
+	sudo -n mkdir "$probe" || return 1
+	sudo -n rmdir "$probe" || return 1
+	return 0
 }
 
 # OS presents as obake-os (not Buildroot) with VERSION aligned to image-version.
@@ -228,6 +250,7 @@ run dns check_dns
 run avahi check_avahi
 run git check_git
 run rauc-status check_rauc_status
+run esp-access check_esp_access
 run update-gated check_update_gated
 run root-locked check_root_locked
 run update-sudo check_update_sudo

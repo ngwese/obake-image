@@ -1,10 +1,15 @@
 #!/bin/sh
 # Auto-mount removable / USB filesystems under /media/<label> for the obake
-# user. Invoked by udev on block add/remove; keeps state in /run/obake-media.
+# user. Invoked by obake-media-automount@.service (host mount namespace) on
+# block add/change; ExecStop handles remove. State in /run/obake-media.
 set -u
 
 state_dir=/run/obake-media
 media_root=/media
+
+log() {
+	printf 'media-automount: %s\n' "$*" >&2
+}
 
 sanitize_name() {
 	# Allow alphanumerics and a few safe punctuation chars; collapse the rest.
@@ -37,6 +42,12 @@ unique_mountpoint() {
 		printf '%s' "$mnt"
 		return 0
 	fi
+	# Already mounted this device at the preferred path.
+	src="$(findmnt -n -o SOURCE --target "$mnt" 2>/dev/null || true)"
+	if [ "$src" = "$devnode" ]; then
+		printf '%s' "$mnt"
+		return 0
+	fi
 	# Label collision: append a short unique suffix from the device identity.
 	suffix="$(blkid -s UUID -o value "$devnode" 2>/dev/null | tr -d '-' | cut -c1-8)"
 	[ -n "$suffix" ] || suffix="$(basename "$devnode")"
@@ -63,13 +74,38 @@ do_add() {
 	devnode="/dev/${kern}"
 	[ -b "$devnode" ] || return 0
 
+	# Already mounted somewhere — record state if under /media and exit.
+	existing="$(findmnt -n -o TARGET -S "$devnode" 2>/dev/null | head -n1 || true)"
+	if [ -n "$existing" ]; then
+		mkdir -p "$state_dir"
+		case "$existing" in
+		"${media_root}"/*) printf '%s\n' "$existing" >"${state_dir}/${kern}" ;;
+		esac
+		return 0
+	fi
+
 	fstype="$(blkid -s TYPE -o value "$devnode" 2>/dev/null || true)"
 	[ -n "$fstype" ] || return 0
 
-	mkdir -p "$state_dir" "$media_root"
+	mkdir -p "$state_dir" "$media_root" || {
+		log "cannot create state or media root"
+		return 1
+	}
 	base="$(mount_name_for "$devnode")"
 	mnt="$(unique_mountpoint "$base" "$devnode")"
-	mkdir -p "$mnt"
+
+	if mountpoint -q "$mnt" 2>/dev/null; then
+		src="$(findmnt -n -o SOURCE --target "$mnt" 2>/dev/null || true)"
+		if [ "$src" = "$devnode" ]; then
+			printf '%s\n' "$mnt" >"${state_dir}/${kern}"
+			return 0
+		fi
+	fi
+
+	if ! mkdir -p "$mnt"; then
+		log "mkdir failed for $mnt"
+		return 1
+	fi
 
 	uid="$(id -u obake 2>/dev/null || echo 1000)"
 	gid="$(id -g obake 2>/dev/null || echo 1000)"
@@ -81,9 +117,10 @@ do_add() {
 		esac
 	fi
 
-	if ! mount -t "$fstype" -o "$opts" "$devnode" "$mnt" 2>/dev/null; then
+	if ! mount -t "$fstype" -o "$opts" "$devnode" "$mnt"; then
 		# Retry without an explicit type (lets mount(8) probe).
-		if ! mount -o "$opts" "$devnode" "$mnt" 2>/dev/null; then
+		if ! mount -o "$opts" "$devnode" "$mnt"; then
+			log "mount failed for $devnode -> $mnt (fstype=$fstype)"
 			rmdir "$mnt" 2>/dev/null || true
 			return 1
 		fi

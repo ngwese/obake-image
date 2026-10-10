@@ -5,3 +5,4 @@
 # /var                   volatile tmpfs; only the persisted subset survives
 # /home                  user partition (survives updates and reinstalls)
 # /persist               persist partition
+# /media                 volatile tmpfs; removable-media mount root
