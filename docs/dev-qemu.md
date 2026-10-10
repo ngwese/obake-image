@@ -5,13 +5,15 @@ log in over SSH to inspect the result.
 
 ## Prerequisites
 
-- Docker, and the project's build and verification environments:
+- Docker with the Buildx CLI plugin (Ubuntu: `apt install docker-buildx`), and
+  the project's build and verification environments:
   `image/build/build-env/run.sh` (builds the Buildroot artifacts) and
   `image/verification/verify-env/run.sh` (provides QEMU/OVMF on hosts without a
   system QEMU). Prefer `verify-env/run.sh` over a raw `docker run`: it runs as
   your uid/gid and adds the host groups that own `/dev/kvm` and
   `/var/run/docker.sock` when those paths exist. The build wrapper selects the
-  build container automatically.
+  build container automatically. Without Buildx those wrappers fail instead of
+  falling back to the legacy Docker builder.
 - A readable Docker socket (`/var/run/docker.sock`) when a harness must build
   artifacts through nested Docker.
 - Hardware acceleration on the host: `/dev/kvm` (Linux, or Windows 11 WSL2 with

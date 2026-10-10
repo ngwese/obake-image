@@ -55,12 +55,16 @@ image/verification/verify-env/run.sh image/verification/qemu/boot-test.sh \
 and removable without elevated privileges. When `/dev/kvm` or
 `/var/run/docker.sock` exist, it adds those paths' host owning groups so
 accelerated QEMU and nested builds keep working. Prefer this wrapper over a
-raw `docker run`; reclaim a leftover foreign-owned tree with
-`image/verification/ensure-user-owned.sh image/_verify image/_dev`.
+raw `docker run`. Reclaim leftover foreign-owned trees with
+`image/verification/ensure-user-owned.sh` (underscore dirs and known legacy
+paths under `verification/qemu/` such as `boot-test.log`, `install-test.log`,
+and `install-work/`); `verify-env/run.sh` invokes that helper automatically.
 
-Host prerequisites for containerized verification: Docker (and a readable
-Docker socket for nested builds), plus `/dev/kvm` for acceleration on Linux /
-WSL2.
+Host prerequisites for containerized build and verification: Docker with the
+Buildx CLI plugin (Ubuntu: `apt install docker-buildx`), a readable Docker
+socket for nested builds, plus `/dev/kvm` for acceleration on Linux / WSL2.
+Without Buildx the env wrappers fail immediately instead of using the legacy
+builder.
 
 Harness work and logs land under `image/_verify/` (user-owned); the developer
 VM helper uses `image/_dev/` (also user-owned).

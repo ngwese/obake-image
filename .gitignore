@@ -4,10 +4,6 @@ _*/
 # Vendored download locks
 /os/buildroot/vendor/dl/**/.lock
 
-# verification harness scratch that may land next to the scripts
-verification/qemu/*.log
-verification/qemu/install-work/
-
 # singularity build artifacts
 *.sif
 

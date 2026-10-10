@@ -19,7 +19,12 @@ volume="${OBKA_BUILD_VOLUME:-obake-buildroot-cache}"
 uid="$(id -u)"
 gid="$(id -g)"
 
-docker build -q -t "$image" "$here" >/dev/null
+if ! docker buildx version >/dev/null 2>&1; then
+	printf '[build-env] error: Docker Buildx is required to build this image.\n' >&2
+	printf 'Install the Docker Buildx CLI plugin (Ubuntu: apt install docker-buildx).\n' >&2
+	exit 1
+fi
+docker buildx build -q -t "$image" "$here" >/dev/null
 
 docker volume create "$volume" >/dev/null
 

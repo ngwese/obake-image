@@ -33,11 +33,19 @@ if [ $# -lt 1 ]; then
 	exit 2
 fi
 
-docker build -q -t "$image" "$here" >/dev/null
+if ! docker buildx version >/dev/null 2>&1; then
+	printf '[verify-env] error: Docker Buildx is required to build this image.\n' >&2
+	printf 'Install the Docker Buildx CLI plugin (Ubuntu: apt install docker-buildx).\n' >&2
+	exit 1
+fi
+docker buildx build -q -t "$image" "$here" >/dev/null
 
 # Reclaim leftover foreign-owned trees so harnesses can rm -rf without sudo.
 bash "$here/../ensure-user-owned.sh" \
-	"$image_root/_verify" "$image_root/_dev" || true
+	"$image_root/_verify" "$image_root/_dev" \
+	"$here/../qemu/boot-test.log" \
+	"$here/../qemu/install-test.log" \
+	"$here/../qemu/install-work" || true
 
 run_args=(--rm
 	--user "$uid:$gid"
@@ -97,6 +105,9 @@ set -e
 
 # Safety net if anything was still written with foreign ownership.
 bash "$here/../ensure-user-owned.sh" \
-	"$image_root/_verify" "$image_root/_dev" || true
+	"$image_root/_verify" "$image_root/_dev" \
+	"$here/../qemu/boot-test.log" \
+	"$here/../qemu/install-test.log" \
+	"$here/../qemu/install-work" || true
 
 exit "$rc"

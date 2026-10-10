@@ -13,7 +13,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 disk="${1:?usage: boot-test.sh <disk-image> [marker]}"
 marker="${2:-${BOOT_MARKER:-login:}}"
 timeout_s="${BOOT_TIMEOUT:-300}"
-log="${BOOT_LOG:-$here/boot-test.log}"
+image_root="$(cd "$here/../.." && pwd)"
+if [ -z "${BOOT_LOG:-}" ]; then
+	mkdir -p "$image_root/_verify/$OBKA_ARCH/boot"
+	BOOT_LOG="$image_root/_verify/$OBKA_ARCH/boot/boot-test.log"
+fi
+log="$BOOT_LOG"
 
 [ -f "$disk" ] || { printf 'missing disk image: %s\n' "$disk" >&2; exit 2; }
 [ -f "$OVMF_CODE" ] || { printf 'missing firmware code: %s\n' "$OVMF_CODE" >&2; exit 2; }
