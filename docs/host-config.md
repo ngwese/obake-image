@@ -106,18 +106,18 @@ the read-only root or the directory contract:
 - Membership in the `systemd-journal` group (declared in
   `/usr/lib/sysusers.d/obake.conf`) gives `journalctl` read access to the full
   system journal, not just `obake`'s own messages.
-- Passwordless sudo for `/usr/bin/obake-update` only
-  (`/etc/sudoers.d/obake-update`), so `obake-update apply` / `rollback` can run
-  over SSH without a general root shell and without `mount`/`umount` in
-  sudoers.
+- Passwordless sudo for all commands (`/etc/sudoers.d/obake-update`), including
+  interactive root shells (`sudo -s`, `sudo -i`) and `obake-update apply` /
+  `rollback`. Escalate with sudo for debugging; do not unlock the root account.
 
 The root account is locked (no usable password): empty-password `su -` as
 `obake` fails. Operators use SSH as `obake`, not a root login.
 
-The root filesystem stays read-only and root-owned, so none of these grants let
-the user write outside the directory contract. Only the systemd/power grant is
-polkit; the kernel-log grant is a sysctl and the journal grant is filesystem
-group access.
+Without sudo, the root filesystem stays read-only and root-owned, so unprivileged
+writes stay inside the directory contract. Prefer `/home` and `/persist` for
+lasting changes; remounting the slot root read-write is possible via sudo but
+breaks the update contract. Only the systemd/power grant is polkit; the
+kernel-log grant is a sysctl and the journal grant is filesystem group access.
 
 ### Removable media
 

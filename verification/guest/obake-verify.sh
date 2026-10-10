@@ -118,12 +118,10 @@ check_root_locked() {
 	return 0
 }
 
-# obake may invoke the update client via passwordless sudo, but not a shell.
+# obake may invoke the update client and a general shell via passwordless sudo.
 check_update_sudo() {
 	sudo -n /usr/bin/obake-update status >/tmp/obake-sudo-update.log 2>&1 || return 1
-	if sudo -n /bin/sh -c true >/tmp/obake-sudo-shell.log 2>&1; then
-		return 1
-	fi
+	sudo -n /bin/sh -c true >/tmp/obake-sudo-shell.log 2>&1 || return 1
 	return 0
 }
 

@@ -354,12 +354,12 @@ login.) SSH *host* keys (the server identity) are generated at install time and
 seeded onto the persist partition.
 
 Once connected, the `obake` user can manage systemd units and power state and
-read `dmesg` and the full journal without a password, and can run
-`obake-update` via a narrowly scoped passwordless sudo grant, but cannot open a
-general root shell or write `/etc` / the read-only root. Home data lives under
-`/home/obake`. The root account is locked (no empty-password `su -`). Singularity
-shapes run as `obake` using user namespaces (no setuid helper). See
-`host-config.md`.
+read `dmesg` and the full journal without a password, and has passwordless sudo
+for all commands (including `sudo -s` and `obake-update`). Without sudo, writes
+to `/etc` and the read-only root still fail. Home data lives under
+`/home/obake`. The root account is locked (no empty-password `su -`); escalate
+with sudo instead. Singularity shapes run as `obake` using user namespaces (no
+setuid helper). See `host-config.md`.
 
 ## 7. Filesystem layout: read-only root vs writable contract
 
@@ -418,9 +418,9 @@ automatically.
    obake-update rollback
    ```
 
-   `apply` and `rollback` need root (persist health state, RAUC). The image
-   grants passwordless sudo for `/usr/bin/obake-update` only, so those commands
-   re-exec via `sudo` when run as `obake`. Removable media does not require
+   `apply` and `rollback` need root (persist health state, RAUC). Those commands
+   re-exec via `sudo` when run as `obake`; the image grants passwordless sudo
+   for all commands (including `sudo -s`). Removable media does not require
    `mount`/`umount` in sudoers.
 
 `apply` snapshots the shape configuration, writes the inactive slot, and marks

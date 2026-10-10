@@ -1,4 +1,3 @@
-# Narrow grant: only the update client (apply/rollback need root for /persist
-# health state and rauc). Removable media is auto-mounted under /media; do not
-# add mount/umount or a general root shell here.
-obake ALL=(root) NOPASSWD: /usr/bin/obake-update
+# Full passwordless sudo for operator debugging (including sudo -s / -i).
+# Root account stays locked; escalate via sudo, not su.
+obake ALL=(root) NOPASSWD: ALL

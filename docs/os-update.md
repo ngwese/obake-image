@@ -44,7 +44,8 @@ accepts bundles from two sources using the same format and signature check:
   development service).
 
 Updates run only on an explicit request. The `obake` user applies them via
-passwordless sudo for `/usr/bin/obake-update` only; the root account is locked.
+passwordless sudo (the image grants `obake` sudo for all commands, including
+`sudo -s`); the root account is locked.
 
 ## Configuration
 
