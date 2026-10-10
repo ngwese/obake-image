@@ -45,10 +45,20 @@ CONFIG_CRYPTO_SHA256=y
 # Writable contract: the /etc overlay, the /var tmpfs, and FUSE.
 CONFIG_OVERLAY_FS=y
 CONFIG_TMPFS=y
-CONFIG_TMPFS_POSIX_ACL=y
-CONFIG_TMPFS_XATTR=y
 CONFIG_EXT4_FS=y
 CONFIG_FUSE_FS=y
+
+# Extended attributes for onboard filesystems that expose a kernel option.
+# SquashFS: many SIFs (library://, docker-derived) ship xattrs; without this
+# the mount works but dmesg reports ignored xattrs / missing id index table.
+# ext4: POSIX ACLs and security.* labels (e.g. file capabilities).
+# tmpfs: /var and other tmpfs mounts. Overlay/FUSE have no separate host
+# xattr toggle (stacked / userspace). FAT/exFAT have no Linux xattr Kconfig.
+CONFIG_SQUASHFS_XATTR=y
+CONFIG_EXT4_FS_POSIX_ACL=y
+CONFIG_EXT4_FS_SECURITY=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_POSIX_ACL=y
 
 # Namespaces for Singularity (setuid fakeroot / optional userns flows).
 CONFIG_NAMESPACES=y
