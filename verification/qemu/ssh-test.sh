@@ -102,6 +102,13 @@ if ! ssh_run 'journalctl -b -u ssh.service --no-pager -n 1 2>/dev/null | grep -q
 	fail "obake could not read the full system journal via journalctl"
 fi
 
+log "checking login accounting (last / wtmp) as obake"
+# OpenSSH only writes wtmp when a PTY is allocated; force one with -tt.
+if ! ssh -tt "${ssh_opts[@]}" obake@127.0.0.1 \
+	'last 2>/dev/null | grep -q obake' >/dev/null 2>&1; then
+	fail "last did not succeed or did not list the obake SSH session"
+fi
+
 # Power control should also be granted; the guest then powers off and QEMU
 # exits (the run uses -no-reboot).
 log "checking polkit-granted poweroff as obake"

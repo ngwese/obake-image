@@ -10,6 +10,12 @@ include $(sort $(wildcard $(BR2_EXTERNAL_OBAKE_PATH)/package/*/*.mk))
 # appended option wins.
 RAUC_CONF_OPTS += -Dpkcs11_engine=false
 
+# Buildroot disables utmp/wtmp/lastlog in openssh.mk (cross-build heuristic).
+# Re-enable so sshd records sessions into /var/log/wtmp for last(1).
+OPENSSH_CONF_OPTS := $(filter-out \
+	--disable-lastlog --disable-utmp --disable-utmpx \
+	--disable-wtmp --disable-wtmpx,$(OPENSSH_CONF_OPTS))
+
 # Inject image-tree git provenance into the kernel release string via the
 # LOCALVERSION make variable (appended after CONFIG_LOCALVERSION by
 # scripts/setlocalversion). Board configs keep CONFIG_LOCALVERSION (e.g.

@@ -48,8 +48,12 @@ subset is bind-mounted from the persist partition by
 lib/systemd
 lib/NetworkManager
 lib/singularity
-log/journal
+log
 ```
+
+`log` covers the system journal (`log/journal`) and login accounting
+(`/var/log/wtmp`, `btmp`, `lastlog`) so `last` history survives reboot and
+slot switch.
 
 ### persist partition
 
