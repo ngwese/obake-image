@@ -35,7 +35,7 @@ for case in good ro etc var user; do
 	break_env=""
 	[ "$case" = "good" ] || break_env="$case"
 	VERIFY=1 BREAK="$break_env" OBAKE_OUTDIR="$d" \
-		bash "$buildsh" "$board" virtual >"$d/build.log" 2>&1
+		MAKE_DISK=1 bash "$buildsh" "$board" virtual --update >"$d/build.log" 2>&1
 
 	if BOOT_TIMEOUT="$timeout_s" BOOT_MARKER="$expect" BOOT_LOG="$d/boot.log" \
 		"$here/boot-test.sh" "$d/disk-a.img"; then

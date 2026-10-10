@@ -38,7 +38,7 @@ fi
 OBAKE_IMAGE_VERSION="$bundle_version" IMAGE_TAG="$bundle_version" MAKE_DISK=1 \
 	VERIFY=1 VERIFY_UPDATE=1 \
 	RAUC_SIGNING_CERT="$sign_cert" RAUC_SIGNING_KEY="$sign_key" \
-	OBAKE_OUTDIR="$out/update" bash "$buildsh" "$board" virtual \
+	OBAKE_OUTDIR="$out/update" bash "$buildsh" "$board" virtual --update \
 	>"$out/update-build.log" 2>&1
 
 bundle="$out/update/obake-$bundle_version-b.raucb"
@@ -47,7 +47,7 @@ bundle="$out/update/obake-$bundle_version-b.raucb"
 log "building verification image for mode $mode"
 RAUC_KEYRING="$out/trusted/ca.cert.pem" VERIFY=1 VERIFY_UPDATE=1 \
 	VERIFY_UPDATE_BUNDLE="$bundle" MAKE_DISK=1 \
-	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual --update \
 	>"$out/build.log" 2>&1
 
 disk="$out/image/disk-a.img"

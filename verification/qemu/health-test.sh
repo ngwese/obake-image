@@ -35,7 +35,7 @@ OBAKE_IMAGE_VERSION="$bundle_version" IMAGE_TAG="$bundle_version" MAKE_DISK=1 \
 	VERIFY=1 VERIFY_HEALTH=1 MOCK_HEALTH="$mock_health" HEALTH_MAX_ATTEMPTS="$max_attempts" \
 	RAUC_SIGNING_CERT="$out/trusted/signing.cert.pem" \
 	RAUC_SIGNING_KEY="$out/trusted/signing.key" \
-	OBAKE_OUTDIR="$out/update" bash "$buildsh" "$board" virtual \
+	OBAKE_OUTDIR="$out/update" bash "$buildsh" "$board" virtual --update \
 	>"$out/update-build.log" 2>&1
 
 bundle="$out/update/obake-$bundle_version-b.raucb"
@@ -46,7 +46,7 @@ RAUC_KEYRING="$out/trusted/ca.cert.pem" VERIFY=1 VERIFY_HEALTH=1 \
 	VERIFY_UPDATE_BUNDLE="$bundle" MAKE_DISK=1 \
 	LOCAL_BUNDLE="/opt/obake/update.raucb" \
 	MOCK_HEALTH="$mock_health" HEALTH_MAX_ATTEMPTS="$max_attempts" \
-	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual --update \
 	>"$out/build.log" 2>&1
 
 disk="$out/image/disk-a.img"

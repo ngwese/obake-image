@@ -41,7 +41,7 @@ rm -rf "$out"
 mkdir -p "$out"
 
 log "building default image (no OBKA_PASSWORD)"
-MAKE_DISK=0 OBAKE_OUTDIR="$out/default" bash "$buildsh" "$board" virtual \
+MAKE_DISK=0 OBAKE_OUTDIR="$out/default" bash "$buildsh" "$board" virtual --update \
 	>"$out/default-build.log" 2>&1
 default_tar="$out/default/rootfs.tar"
 [ -f "$default_tar" ] || fail "no default rootfs.tar"
@@ -58,7 +58,7 @@ log "default build keeps password login disabled"
 
 log "building image with OBKA_PASSWORD"
 MAKE_DISK=1 OBKA_PASSWORD="$test_password" \
-	OBAKE_OUTDIR="$out/password" bash "$buildsh" "$board" virtual \
+	OBAKE_OUTDIR="$out/password" bash "$buildsh" "$board" virtual --update \
 	>"$out/password-build.log" 2>&1
 pass_tar="$out/password/rootfs.tar"
 disk="$out/password/disk-a.img"

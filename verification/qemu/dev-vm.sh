@@ -6,12 +6,9 @@ set -euo pipefail
 # so you can log in and inspect the result.
 #
 # Run inside the verification environment (which provides QEMU, OVMF, and the
-# Docker socket the build wrapper uses), with the SSH port published, e.g.:
-#   docker run --rm -it --device /dev/kvm -p 2222:2222 \
-#     -v "$PWD:$PWD" -w "$PWD" \
-#     -v /var/run/docker.sock:/var/run/docker.sock \
-#     -v /usr/bin/docker:/usr/local/bin/docker:ro \
-#     obake-verify-env image/verification/qemu/dev-vm.sh
+# Docker socket the build wrapper uses), with the SSH port published. Prefer
+# the identity flags documented in image/docs/dev-qemu.md (same as
+# verify-env/run.sh: --user uid:gid plus kvm/docker.sock --group-add).
 #
 # Then from the host:  ssh -i image/_dev/id -p 2222 obake@127.0.0.1
 #
@@ -31,12 +28,8 @@ Usage: dev-vm.sh [-v|--verbose] [-h|--help]
 Builds the OS + installer with an SSH key baked into the install, installs to a
 virtual disk under KVM, then boots it with SSH forwarded (port 2222 by default).
 
-Run inside the verification environment with the port published:
-  docker run --rm -it --device /dev/kvm -p 2222:2222 \
-    -v "$PWD:$PWD" -w "$PWD" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /usr/bin/docker:/usr/local/bin/docker:ro \
-    obake-verify-env image/verification/qemu/dev-vm.sh -v
+Run inside the verification environment with the SSH port published (see
+image/docs/dev-qemu.md for the docker run with --user and group-add).
 
 Then from the host:
   ssh -i image/_dev/id -p 2222 obake@127.0.0.1
@@ -101,10 +94,10 @@ if [ ! -f "$key" ]; then
 fi
 
 log "building OS artifacts and installer (accel=$OBKA_QEMU_ACCEL_NAME)"
-vlog "OBKA_SSH_AUTHORIZED_KEY=$key.pub MAKE_INSTALLER=1 image/build/build.sh $board virtual"
+vlog "OBKA_SSH_AUTHORIZED_KEY=$key.pub MAKE_INSTALLER=1 image/build/build.sh $board virtual --installer"
 run_capture "$work/build.log" env OBKA_SSH_AUTHORIZED_KEY="$key.pub" \
   MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
-  bash "$buildsh" "$board" virtual
+  bash "$buildsh" "$board" virtual --installer
 installer="$(obka_arch_dir)/installer-serial.img"
 vlog "installer:   $installer"
 

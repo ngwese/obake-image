@@ -2,18 +2,20 @@
 # Build an obake Buildroot image and stage its artifacts.
 #
 # Usage:
-#   build.sh <board> [profile] [--] [make-args...]
+#   build.sh <board> [profile] --installer|--update [--] [make-args...]
 #   build.sh --print-dir <board> [profile]
 #
 #   board     generic-aarch64 | generic-x86_64 | qdl | rk35xx
 #   profile   default (physical board) | virtual (emulation/verification);
 #             defaults to default when omitted
+#   --installer  emit installer media (and disk image); bake/use dev signing
+#   --update     emit signed RAUC bundles only (no installer/disk by default)
 #
 # The target architecture follows from the board. Artifacts stage under
 # image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/ override with
 # OBAKE_OUTDIR. Build knobs (VERIFY*, BREAK, MAKE_DISK, MAKE_INSTALLER,
 # IMAGE_TAG, RAUC_SIGNING_*, OBKA_SSH_AUTHORIZED_KEY, OBKA_PASSWORD, ...) are
-# forwarded; an explicit setting wins over the board profile.
+# forwarded; an explicit setting wins over product defaults where noted.
 #
 # On a host with Docker the build runs in the native build container as the
 # invoking user. On a Linux host without Docker the Buildroot build runs
@@ -23,11 +25,14 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 image_root="$(cd "$here/.." && pwd)"
 project_root="$(cd "$here/../.." && pwd)"
+signing_dir="$image_root/_build/signing"
 
 usage() {
-	printf 'usage: %s [--print-dir] <board> [profile] [--] [make-args...]\n' "$0" >&2
+	printf 'usage: %s [--print-dir] <board> [profile] --installer|--update [--] [make-args...]\n' \
+		"$0" >&2
 	printf 'boards: generic-aarch64 generic-x86_64 qdl rk35xx\n' >&2
 	printf 'profiles: default virtual\n' >&2
+	printf 'product: --installer (flash media) | --update (RAUC bundles)\n' >&2
 	exit 2
 }
 
@@ -42,27 +47,42 @@ board="$1"
 shift
 
 profile="default"
+product=""
 make_args=()
-if [ $# -gt 0 ]; then
+while [ $# -gt 0 ]; do
 	case "$1" in
+	--installer)
+		if [ -n "$product" ]; then
+			printf '[build] error: pass only one of --installer or --update\n' >&2
+			usage
+		fi
+		product=installer
+		shift
+		;;
+	--update)
+		if [ -n "$product" ]; then
+			printf '[build] error: pass only one of --installer or --update\n' >&2
+			usage
+		fi
+		product=update
+		shift
+		;;
 	--)
 		shift
 		make_args=("$@")
+		break
 		;;
 	default | virtual)
 		profile="$1"
 		shift
-		if [ "${1:-}" = "--" ]; then
-			shift
-		fi
-		make_args=("$@")
 		;;
 	*)
 		# Remaining tokens are make args (e.g. -jN, clean).
 		make_args=("$@")
+		break
 		;;
 	esac
-fi
+done
 
 board_config="$image_root/os/buildroot/configs/obake-$board.config"
 if [ ! -f "$board_config" ]; then
@@ -93,6 +113,46 @@ if [ "$print_dir" = 1 ]; then
 	printf '%s\n' "$out"
 	exit 0
 fi
+
+if [ -z "$product" ]; then
+	printf '[build] error: require --installer or --update\n' >&2
+	usage
+fi
+
+# Development signing under image/_build/signing when paths are unset.
+ensure_dev_signing() {
+	bash "$image_root/os/scripts/make-signing-material.sh" "$signing_dir" \
+		>/dev/null
+	if [ -z "${RAUC_SIGNING_CERT:-}" ]; then
+		export RAUC_SIGNING_CERT="$signing_dir/signing.cert.pem"
+	fi
+	if [ -z "${RAUC_SIGNING_KEY:-}" ]; then
+		export RAUC_SIGNING_KEY="$signing_dir/signing.key"
+	fi
+	if [ -z "${RAUC_KEYRING:-}" ]; then
+		export RAUC_KEYRING="$signing_dir/ca.cert.pem"
+	fi
+}
+
+case "$product" in
+installer)
+	export MAKE_INSTALLER=1
+	ensure_dev_signing
+	printf '[build] product installer: MAKE_INSTALLER=1 (dev signing defaults)\n' \
+		>&2
+	;;
+update)
+	if [ -z "${MAKE_INSTALLER+x}" ]; then
+		export MAKE_INSTALLER=0
+	fi
+	if [ -z "${MAKE_DISK+x}" ]; then
+		export MAKE_DISK=0
+	fi
+	ensure_dev_signing
+	printf '[build] product update: MAKE_INSTALLER=%s MAKE_DISK=%s (dev signing defaults)\n' \
+		"${MAKE_INSTALLER}" "${MAKE_DISK}" >&2
+	;;
+esac
 
 export OBAKE_PROFILE="$profile"
 export OBAKE_BOARD="$board"
@@ -177,6 +237,7 @@ if command -v docker >/dev/null 2>&1; then
 	# build and would otherwise accumulate in the build volume.
 	docker run --rm -v "$volume":/cache "$image" sh -c \
 		"rm -rf $work_in_container/output/$board/images/disk-*.img \
+			$work_in_container/output/$board/images/installer*.img \
 			$work_in_container/output/$board/images/obake-*.raucb \
 			$work_in_container/output/$board/images/.disk-work \
 			$work_in_container/output/$board/images/.installer \
@@ -190,6 +251,12 @@ else
 		bash "$image_root/os/buildroot/build.sh" "$board" \
 		${make_args[@]+"${make_args[@]}"}
 	stage_images "$work/output/$board/images"
+fi
+
+# --update must not publish stale installer/disk images left in the Buildroot
+# images tree from an earlier --installer build of the same board output.
+if [ "$product" = "update" ]; then
+	rm -f "$out"/installer*.img "$out"/disk-*.img
 fi
 
 print_artifacts

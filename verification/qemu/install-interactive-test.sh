@@ -21,7 +21,7 @@ printf '[install-interactive] building installer image\n'
 [ -f "$arch_dir/installer-serial.img" ] || \
 	MAKE_INSTALLER=1 CONSOLE=serial \
 		INSTALLER_TARGET_DISK=interactive \
-		bash "$buildsh" "$board" virtual >"$out/build.log" 2>&1
+		bash "$buildsh" "$board" virtual --installer >"$out/build.log" 2>&1
 
 installer="$arch_dir/installer-serial.img"
 [ -f "$installer" ] || { printf 'missing installer image: %s\n' "$installer" >&2; exit 2; }

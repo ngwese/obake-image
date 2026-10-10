@@ -21,15 +21,16 @@ to the matching `generic-<arch>` board and build its `virtual` profile.
 The build entry point and its container live under `../build/`:
 
 ```
-image/build/build.sh <board> [profile]
+image/build/build.sh <board> [profile] --installer|--update
 image/build/build.sh --print-dir <board> [profile]
 ```
 
 `build.sh` builds in the container (as the invoking user) and stages artifacts
-under `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/`. Build
-knobs (`VERIFY*`, `BREAK`, `MAKE_DISK`, `MAKE_INSTALLER`, `IMAGE_TAG`,
-`RAUC_SIGNING_*`, `RAUC_KEYRING`, ...) are forwarded and override the board
-profile. Verification uses a small partition layout
+under `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/`. Exactly
+one of `--installer` or `--update` is required. Build knobs (`VERIFY*`,
+`BREAK`, `MAKE_DISK`, `MAKE_INSTALLER`, `IMAGE_TAG`, `RAUC_SIGNING_*`,
+`RAUC_KEYRING`, ...) are forwarded and override product/profile defaults.
+Verification uses a small partition layout
 (`image/os/partition-layout.verify.json`) so disk images stay storable; the
 release build uses `image/os/partition-layout.json`.
 
@@ -50,8 +51,19 @@ image/verification/verify-env/run.sh image/verification/qemu/boot-test.sh \
   "$(image/build/build.sh --print-dir generic-x86_64 virtual)/disk-a.img"
 ```
 
-Harness work and logs land under `image/_verify/`; the developer VM helper uses
-`image/_dev/`.
+`verify-env/run.sh` runs as the invoking user so harness output is user-owned
+and removable without elevated privileges. When `/dev/kvm` or
+`/var/run/docker.sock` exist, it adds those paths' host owning groups so
+accelerated QEMU and nested builds keep working. Prefer this wrapper over a
+raw `docker run`; reclaim a leftover foreign-owned tree with
+`image/verification/ensure-user-owned.sh image/_verify image/_dev`.
+
+Host prerequisites for containerized verification: Docker (and a readable
+Docker socket for nested builds), plus `/dev/kvm` for acceleration on Linux /
+WSL2.
+
+Harness work and logs land under `image/_verify/` (user-owned); the developer
+VM helper uses `image/_dev/` (also user-owned).
 
 ## QEMU checks
 

@@ -39,7 +39,7 @@ log "building installer image"
 [ -f "$arch_dir/installer-serial.img" ] || \
 	MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
 		INSTALLER_TARGET_DISK=/dev/vdb INSTALLER_PRESERVE_USER=1 \
-		bash "$buildsh" "$board" virtual >"$out/build.log" 2>&1
+		bash "$buildsh" "$board" virtual --installer >"$out/build.log" 2>&1
 
 installer="$arch_dir/installer-serial.img"
 target="$out/target.img"

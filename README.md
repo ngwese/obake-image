@@ -19,12 +19,14 @@ This repository is consumed as the `image/` submodule of the top-level
 ## Build
 
 ```
-image/build/build.sh <board> [profile]
+image/build/build.sh <board> [profile] --installer|--update
 image/build/build.sh --print-dir <board> [profile]
 ```
 
 `board` is `generic-aarch64`, `generic-x86_64`, `qdl`, or `rk35xx`. `profile`
 is `default` (physical board; the default when omitted) or `virtual`
-(emulation/verification). The target architecture follows from the board.
-Artifacts stage under
+(emulation/verification). Exactly one product flag is required: `--installer`
+for flash media, `--update` for signed RAUC bundles (default development
+signing under `image/_build/signing`). The target architecture follows from
+the board. Artifacts stage under
 `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/`.

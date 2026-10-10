@@ -24,7 +24,7 @@ log_fn() { printf '[install-test] %s\n' "$*" >&2; }
 
 [ -f "$installer" ] || {
 	MAKE_INSTALLER=1 CONSOLE=serial INSTALLER_POWEROFF_DELAY=0 \
-		bash "$buildsh" "$board" virtual >&2
+		bash "$buildsh" "$board" virtual --installer >&2
 	installer="$arch_dir/installer-serial.img"
 }
 [ -f "$installer" ] || { printf 'missing installer image: %s\n' "$installer" >&2; exit 2; }

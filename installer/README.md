@@ -57,28 +57,28 @@ still overrides the profile. (`CONSOLE` was formerly `INSTALLER_CONSOLE`.)
 The bare-metal `qdl` flow is therefore:
 
 ```
-image/build/build.sh qdl
+image/build/build.sh qdl --installer
 ```
 
 ## Installer image
 
-`image/build/build.sh` emits the installer medium at
-`image/_out/os/<board>/<profile>/<version>-<sha>[-dirty]/installer-<console>.img`
-when the profile (or `MAKE_INSTALLER=1`) requests it, where `<console>` is
-`serial` or `local` (see Console selection below). It bundles the built
-per-slot images under `/opt/obake/images` and runs `install.sh` at boot via
-`obake-installer.service`. The medium uses its own partition labels
-(`OBKA_INSTALLER`, `OBKA_INST`) and its own UKI, so a disk-based installer
-cannot be confused with the target it is installing to. By default the `virtual`
-profile targets the second disk (`/dev/vdb`) and powers off when finished; set
-`INSTALLER_TARGET_DISK=interactive` to prompt on the console instead. After
-install (success or failure), interactive media prompt for Enter before
-poweroff; non-interactive media wait `INSTALLER_POWEROFF_DELAY` seconds
-(default 10; set `0` for CI). Build and verify a serial installer with:
+`image/build/build.sh … --installer` emits the installer medium at
+`image/_out/os/<board>/<profile>/<version>-<sha>[-dirty]/installer-<console>.img`,
+where `<console>` is `serial` or `local` (see Console selection below). It
+bundles the built per-slot images under `/opt/obake/images` and runs
+`install.sh` at boot via `obake-installer.service`. The medium uses its own
+partition labels (`OBKA_INSTALLER`, `OBKA_INST`) and its own UKI, so a
+disk-based installer cannot be confused with the target it is installing to.
+By default the `virtual` profile targets the second disk (`/dev/vdb`) and
+powers off when finished; set `INSTALLER_TARGET_DISK=interactive` to prompt on
+the console instead. After install (success or failure), interactive media
+prompt for Enter before poweroff; non-interactive media wait
+`INSTALLER_POWEROFF_DELAY` seconds (default 10; set `0` for CI). Build and
+verify a serial installer with:
 
 ```
-MAKE_INSTALLER=1 INSTALLER_POWEROFF_DELAY=0 \
-  image/build/build.sh generic-x86_64 virtual
+INSTALLER_POWEROFF_DELAY=0 \
+  image/build/build.sh generic-x86_64 virtual --installer
 image/verification/qemu/install-test.sh \
   "$(image/build/build.sh --print-dir generic-x86_64 virtual)/installer-serial.img"
 ```
@@ -96,8 +96,8 @@ For a host with no serial port and an attached HDMI monitor and USB keyboard,
 select the local text console instead (the `qdl` `default` profile does this):
 
 ```
-image/build/build.sh qdl
-# or explicitly:
+image/build/build.sh qdl --installer
+# or explicitly via the low-level wrapper:
 MAKE_INSTALLER=1 CONSOLE=local INSTALLER_TARGET_DISK=interactive \
   image/os/buildroot/build.sh qdl
 ```

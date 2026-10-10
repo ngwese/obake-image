@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Usage: make-signing-material.sh [outdir]
 
-out="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.build/signing}"
+out="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/_build/signing}"
 mkdir -p "$out"
 
 if [ ! -f "$out/ca.key" ]; then

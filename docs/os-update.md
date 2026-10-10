@@ -25,8 +25,8 @@ Because each slot's UKI embeds its own `root=PARTLABEL=...`, a bundle is built
 for the slot it will be installed into: build it with the target slot's UKI
 (`make-bundle.sh <slot> ...`). RAUC installs to whichever slot is inactive, so
 the USB/HTTPS bundle must match that inactive slot — if the host reports
-`active slot: rootfs.1 (B)`, use the slot-a bundle. A signed
-`image/build/build.sh` emits both `obake-<version>-a.raucb` and
+`active slot: rootfs.1 (B)`, use the slot-a bundle.
+`image/build/build.sh … --update` emits both `obake-<version>-a.raucb` and
 `obake-<version>-b.raucb` by default; set `BUNDLE_SLOT=a` or `BUNDLE_SLOT=b`
 to emit only one (as the integration harness does).
 
@@ -90,14 +90,20 @@ Generate development signing material (or use production keys held offline):
 image/os/scripts/make-signing-material.sh image/_build/signing
 ```
 
-Build the per-slot artifacts and a signed bundle. The build emits the bundle
-itself when signing material is set:
+Build signed update bundles with `--update`. Development signing material under
+`image/_build/signing` is created automatically when unset:
+
+```sh
+image/build/build.sh generic-x86_64 --update
+```
+
+Or pass explicit keys (production or a shared fleet CA):
 
 ```sh
 RAUC_KEYRING=image/_build/signing/ca.cert.pem \
 RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
 RAUC_SIGNING_KEY=image/_build/signing/signing.key \
-  image/build/build.sh generic-x86_64
+  image/build/build.sh generic-x86_64 --update
 ```
 
 `image/build/build.sh` resolves those paths for the build container; relative

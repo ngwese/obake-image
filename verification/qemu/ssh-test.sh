@@ -33,7 +33,7 @@ ssh-keygen -q -t ed25519 -N '' -f "$out/id"
 
 log "building image"
 MAKE_DISK=1 OBKA_SSH_AUTHORIZED_KEY="$out/id.pub" \
-	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual \
+	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual --update \
 	>"$out/build.log" 2>&1
 
 disk="$out/image/disk-a.img"

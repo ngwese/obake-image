@@ -9,6 +9,10 @@
 # `../build.sh` to build artifacts in the Buildroot build container), and the
 # host's KVM device, so verification runs accelerated.
 #
+# The container runs as the invoking user so writes under image/_verify and
+# image/_dev are user-owned. When /dev/kvm or /var/run/docker.sock exist, their
+# host owning groups are added so acceleration and nested builds keep working.
+#
 # Usage: run.sh <command> [args...]
 #
 #   image/verification/verify-env/run.sh image/verification/qemu/integration-test.sh x86_64
@@ -19,7 +23,10 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "$here/../../.." && pwd)"
+image_root="$(cd "$here/../.." && pwd)"
 image="${OBKA_VERIFY_IMAGE:-obake-verify-env}"
+uid="$(id -u)"
+gid="$(id -g)"
 
 if [ $# -lt 1 ]; then
 	printf 'usage: %s <command> [args...]\n' "$0" >&2
@@ -28,9 +35,25 @@ fi
 
 docker build -q -t "$image" "$here" >/dev/null
 
+# Reclaim leftover foreign-owned trees so harnesses can rm -rf without sudo.
+bash "$here/../ensure-user-owned.sh" \
+	"$image_root/_verify" "$image_root/_dev" || true
+
 run_args=(--rm
+	--user "$uid:$gid"
+	-e "HOME=/tmp"
 	-v "$project_root:$project_root"
 	-w "$project_root")
+
+# Supplementary groups for devices the non-root user must still access.
+add_owner_group() {
+	local path="$1" g
+	[ -e "$path" ] || return 0
+	g="$(stat -c '%g' "$path" 2>/dev/null || stat -f '%g' "$path")"
+	[ -n "$g" ] && run_args+=(--group-add "$g")
+}
+add_owner_group /dev/kvm
+add_owner_group /var/run/docker.sock
 
 # KVM acceleration when the host exposes it.
 [ -e /dev/kvm ] && run_args+=(--device=/dev/kvm)
@@ -67,4 +90,13 @@ for v in \
 	[ -n "${!v:-}" ] && run_args+=(-e "$v=${!v}")
 done
 
-exec docker run "${run_args[@]}" "$image" "$@"
+set +e
+docker run "${run_args[@]}" "$image" "$@"
+rc=$?
+set -e
+
+# Safety net if anything was still written with foreign ownership.
+bash "$here/../ensure-user-owned.sh" \
+	"$image_root/_verify" "$image_root/_dev" || true
+
+exit "$rc"

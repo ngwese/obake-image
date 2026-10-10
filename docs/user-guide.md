@@ -111,26 +111,28 @@ The recommended path runs inside the containerized, host-native build
 environment and stages the artifacts under `image/_out/`:
 
 ```
-image/build/build.sh <board> [profile]
+image/build/build.sh <board> [profile] --installer|--update
 image/build/build.sh --print-dir <board> [profile]
 ```
 
 `board` is `generic-aarch64`, `generic-x86_64`, `qdl`, or `rk35xx`. The target
 architecture follows from the board. `profile` is `default` (physical board;
-used when omitted) or `virtual` (emulation/verification). Each board's profile
-under `os/buildroot/profiles/<board>/` supplies installer defaults
-(`MAKE_INSTALLER`, `CONSOLE`, `INSTALLER_TARGET_DISK`); an explicit
-setting still wins. (`CONSOLE` was formerly `INSTALLER_CONSOLE`.)
+used when omitted) or `virtual` (emulation/verification). Exactly one product
+flag is required: `--installer` for flash media, `--update` for signed RAUC
+bundles. Each board's profile under `os/buildroot/profiles/<board>/` supplies
+console and target-disk defaults; an explicit setting still wins.
+(`CONSOLE` was formerly `INSTALLER_CONSOLE`.) Unset signing paths default to
+development material under `image/_build/signing` (created if missing).
 
 ```
-# generic x86_64 (no installer; both profiles are equivalent)
-image/build/build.sh generic-x86_64
+# generic x86_64 update bundles (both profiles are equivalent)
+image/build/build.sh generic-x86_64 --update
 
-# the MeLE Quieter DL board, bare-metal defaults (local console, interactive disk)
-image/build/build.sh qdl
+# the MeLE Quieter DL board, bare-metal installer (local console, interactive disk)
+image/build/build.sh qdl --installer
 
 # the same board for QEMU (serial console, /dev/vdb)
-image/build/build.sh qdl virtual
+image/build/build.sh qdl virtual --installer
 ```
 
 On a Linux host with the build dependencies you can run the low-level wrapper
@@ -253,7 +255,7 @@ The `qdl` `default` profile already selects a local-console, interactive-disk
 installer, so a bare-metal medium is:
 
 ```
-image/build/build.sh qdl
+image/build/build.sh qdl --installer
 ```
 
 The medium lands at
@@ -327,7 +329,7 @@ Seed the **public** key by pointing `OBKA_SSH_AUTHORIZED_KEY` at it:
 
 ```
 OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
-  image/build/build.sh qdl
+  image/build/build.sh qdl --installer
 ```
 
 Then log in as `obake` once the host is on the network.
@@ -343,7 +345,7 @@ secret, not a high-value credential, and do not commit the cleartext.
 ```
 OBKA_PASSWORD='choose-a-secret' \
   OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
-  image/build/build.sh qdl
+  image/build/build.sh qdl --installer
 ```
 
 There is **no SSH keypair generated at build time** — the build consumes a
@@ -393,14 +395,16 @@ HTTPS, and USB is preferred when present. Updates write the inactive slot (and
 its UKI) and take effect on the next boot; a failed update reverts
 automatically.
 
-1. **Sign a bundle.** Build with signing material, or bundle an existing slot:
+1. **Sign a bundle.** Build with `--update` (development signing under
+   `image/_build/signing` is created when unset), or pass explicit keys:
 
    ```
-   image/os/scripts/make-signing-material.sh image/_build/signing
+   image/build/build.sh generic-x86_64 --update
+   # or:
    RAUC_KEYRING=image/_build/signing/ca.cert.pem \
    RAUC_SIGNING_CERT=image/_build/signing/signing.cert.pem \
    RAUC_SIGNING_KEY=image/_build/signing/signing.key \
-     image/build/build.sh generic-x86_64
+     image/build/build.sh generic-x86_64 --update
    ```
 
    Run from the repo root. `image/build/build.sh` resolves those paths for

@@ -60,7 +60,8 @@ obka_build() {
 	board="$(obka_board "$arch")"
 	dir="$(bash "$buildsh" --print-dir "$board" virtual)"
 	if [ ! -f "$dir/disk-a.img" ] || [ "${OBKA_REBUILD:-0}" = "1" ]; then
-		bash "$buildsh" "$board" virtual >&2
+		# Disk image for harnesses; --update skips installer unless overridden.
+		MAKE_DISK=1 bash "$buildsh" "$board" virtual --update >&2
 	fi
 	obka_check_artifact_version "$dir" >&2
 	printf '%s' "$dir"

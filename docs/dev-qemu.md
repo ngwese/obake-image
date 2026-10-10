@@ -8,7 +8,12 @@ log in over SSH to inspect the result.
 - Docker, and the project's build and verification environments:
   `image/build/build-env/run.sh` (builds the Buildroot artifacts) and
   `image/verification/verify-env/run.sh` (provides QEMU/OVMF on hosts without a
-  system QEMU). The build wrapper selects the build container automatically.
+  system QEMU). Prefer `verify-env/run.sh` over a raw `docker run`: it runs as
+  your uid/gid and adds the host groups that own `/dev/kvm` and
+  `/var/run/docker.sock` when those paths exist. The build wrapper selects the
+  build container automatically.
+- A readable Docker socket (`/var/run/docker.sock`) when a harness must build
+  artifacts through nested Docker.
 - Hardware acceleration on the host: `/dev/kvm` (Linux, or Windows 11 WSL2 with
   nested virtualization / "Virtual Machine Platform" enabled). The harnesses
   auto-detect `kvm` → `hvf` → `whpx`/`hax` → `tcg`; see
@@ -23,15 +28,24 @@ SSH and the key survives updates and slot switches.
 ## Quick path (helper)
 
 The helper builds the OS and installer with your key, installs to a virtual
-disk, then boots it with SSH forwarded on port 2222:
+disk, then boots it with SSH forwarded on port 2222. Publish the SSH port on
+the verify-env container (the wrapper does not publish ports by itself):
 
 ```sh
-docker run --rm -it --device /dev/kvm -p 2222:2222 \
+uid="$(id -u)"; gid="$(id -g)"
+kvm_g="$(stat -c '%g' /dev/kvm 2>/dev/null || true)"
+sock_g="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || true)"
+docker run --rm -it --user "$uid:$gid" -e HOME=/tmp \
+  ${kvm_g:+--group-add "$kvm_g"} ${sock_g:+--group-add "$sock_g"} \
+  --device /dev/kvm -p 2222:2222 \
   -v "$PWD:$PWD" -w "$PWD" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /usr/bin/docker:/usr/local/bin/docker:ro \
   obake-verify-env image/verification/qemu/dev-vm.sh
 ```
+
+Or build the image once and use the same identity flags; prefer matching
+`verify-env/run.sh` whenever you do not need published ports.
 
 Pass `-v` / `--verbose` to trace commands and stream the build and install
 output to the terminal (it is also saved under `image/_dev/`); `-h` / `--help`
@@ -49,10 +63,15 @@ The helper writes everything under `image/_dev/` (`build.log`, `install.log`,
 ## Manual steps
 
 Start an interactive verification container with KVM and the SSH port
-published:
+published (same identity flags as `verify-env/run.sh`):
 
 ```sh
-docker run --rm -it --device /dev/kvm -p 2222:2222 \
+uid="$(id -u)"; gid="$(id -g)"
+kvm_g="$(stat -c '%g' /dev/kvm 2>/dev/null || true)"
+sock_g="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || true)"
+docker run --rm -it --user "$uid:$gid" -e HOME=/tmp \
+  ${kvm_g:+--group-add "$kvm_g"} ${sock_g:+--group-add "$sock_g"} \
+  --device /dev/kvm -p 2222:2222 \
   -v "$PWD:$PWD" -w "$PWD" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /usr/bin/docker:/usr/local/bin/docker:ro \
@@ -67,8 +86,8 @@ Buildroot build container through the mounted Docker socket.
 ```sh
 mkdir -p image/_dev
 ssh-keygen -q -t ed25519 -N '' -f image/_dev/id
-OBKA_SSH_AUTHORIZED_KEY="$PWD/image/_dev/id.pub" MAKE_INSTALLER=1 \
-  image/build/build.sh generic-x86_64 virtual
+OBKA_SSH_AUTHORIZED_KEY="$PWD/image/_dev/id.pub" \
+  image/build/build.sh generic-x86_64 virtual --installer
 ```
 
 This produces `installer-serial.img` under the board's `virtual` artifact
