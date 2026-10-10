@@ -109,6 +109,13 @@ if ! ssh -tt "${ssh_opts[@]}" obake@127.0.0.1 \
 	fail "last did not succeed or did not list the obake SSH session"
 fi
 
+log "checking lingering user bus via login shell (systemctl --user)"
+# Remote ssh commands are non-login; exercise profile.d with bash -lc without
+# exporting XDG_RUNTIME_DIR / DBUS_SESSION_BUS_ADDRESS in the harness.
+if ! ssh_run 'bash -lc "systemctl --user status"' >/dev/null 2>&1; then
+	fail "systemctl --user failed in a login shell (user-bus env missing?)"
+fi
+
 # Power control should also be granted; the guest then powers off and QEMU
 # exits (the run uses -no-reboot).
 log "checking polkit-granted poweroff as obake"

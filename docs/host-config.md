@@ -75,7 +75,13 @@ preserves user data.
 ## Network and tooling
 
 - `systemd-networkd` runs DHCP on wired interfaces
-  (`/etc/systemd/network/20-obake-wired.network`).
+  (`/etc/systemd/network/20-obake-wired.network`). Wired links use
+  `RequiredForOnline=no`, so an uncabled boot does not fail
+  `systemd-networkd-wait-online` or leave the system degraded. DHCP still
+  applies when a cable is present. The installer seeds the same file onto the
+  persist `/etc` overlay; OTA does not rewrite an already-seeded copy, so an
+  older host may need a one-line `[Link]` / `RequiredForOnline=no` edit (or a
+  reinstall that recreates the seed) to pick up the optional-cabling policy.
 - `systemd-resolved` provides DNS; `/etc/resolv.conf` is the standard symlink
   to `/run/systemd/resolve/stub-resolv.conf`, so names from DHCP resolve.
 - `avahi-daemon` (with `libnss-mdns`) provides mDNS/`.local` name resolution.
@@ -96,6 +102,14 @@ writing to the read-only home. Verified behaviour:
 
 - the user can modify files under `/home/obake`;
 - a write to `/etc` or to the read-only root fails.
+
+`obake-linger.service` starts the `obake` user manager at boot (session bus for
+JACK D-Bus). Because systemd is built without PAM, login shells get
+`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` from
+`/etc/profile.d/obake-user-bus.sh` when `/run/user/<uid>` exists, so
+`systemctl --user` works in an interactive SSH session without manually
+exporting those variables. Non-login remote commands (`ssh host cmd`) do not
+source `profile.d`; use an interactive login or `bash -lc '...'`.
 
 OpenSSH's per-source auth penalty (`PerSourcePenalties`) is disabled on these
 hosts, which are administered deliberately on trusted networks.

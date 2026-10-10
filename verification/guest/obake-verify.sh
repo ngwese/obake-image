@@ -140,6 +140,13 @@ check_update_sudo() {
 	return 0
 }
 
+# Wired links must not be required for network-online (uncabled boot is normal).
+check_optional_network_online() {
+	net='/etc/systemd/network/20-obake-wired.network'
+	[ -f "$net" ] || return 1
+	grep -qx 'RequiredForOnline=no' "$net"
+}
+
 # Removable-media automount path is ready (USB insert is hardware-dependent).
 # /media must be a writable mount root, not a directory on the read-only root.
 check_media_automount() {
@@ -255,6 +262,7 @@ run update-gated check_update_gated
 run root-locked check_root_locked
 run update-sudo check_update_sudo
 run media-automount check_media_automount
+run optional-network-online check_optional_network_online
 run os-identity check_os_identity
 run kernel-identity check_kernel_identity
 run update-status check_update_status

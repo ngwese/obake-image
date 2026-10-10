@@ -178,6 +178,9 @@ Name=en* eth* end*
 
 [Network]
 DHCP=yes
+
+[Link]
+RequiredForOnline=no
 EOF
   if [ ! -s "$persist/etc/machine-id" ]; then
     rm -f "$persist/etc/machine-id"
