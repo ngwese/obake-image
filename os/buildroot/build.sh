@@ -152,12 +152,13 @@ cat "$base_config" "$board_config" >"$merged"
 # artifacts (console, bootloader) without re-deriving the board from the config.
 export OBAKE_BOARD="$board"
 
-# Kernel LOCALVERSION git provenance (-g<shortsha>[-dirty]), passed to the
-# kernel build as LOCALVERSION (after board CONFIG_LOCALVERSION). Refresh on
-# every invocation; if it changed since the last build, drop linux stamps so
-# the package rebuilds with the new release string.
-git_rev_helper="$here/../scripts/image-git-rev.sh"
-lv="$("$git_rev_helper" localversion)"
+# Kernel local version (-<board>-<rev>) from the image git history of this
+# board's kernel configuration. Refresh on every invocation; if it changed
+# since the last build, drop linux stamps so the package rebuilds with the
+# new release string. A non-zero helper status (shallow checkout) fails the
+# build.
+rev_helper="$here/../scripts/kernel-config-rev.sh"
+lv="$("$rev_helper" "$board")"
 lv_stamp="$out/obake-kernel-localversion"
 prev_lv=""
 [ -f "$lv_stamp" ] && prev_lv="$(tr -d '[:space:]' <"$lv_stamp")"

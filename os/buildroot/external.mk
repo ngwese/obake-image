@@ -16,11 +16,11 @@ OPENSSH_CONF_OPTS := $(filter-out \
 	--disable-lastlog --disable-utmp --disable-utmpx \
 	--disable-wtmp --disable-wtmpx,$(OPENSSH_CONF_OPTS))
 
-# Inject image-tree git provenance into the kernel release string via the
-# LOCALVERSION make variable (appended after CONFIG_LOCALVERSION by
-# scripts/setlocalversion). Board configs keep CONFIG_LOCALVERSION (e.g.
-# -qdl); build.sh exports OBAKE_KERNEL_LOCALVERSION (-g<shortsha>[-dirty]).
-# Using a localversion-* file would place git before the board suffix.
+# Inject -<board>-<rev> into the kernel release string via the LOCALVERSION
+# make variable (appended after CONFIG_LOCALVERSION by scripts/setlocalversion).
+# Board linux.config files leave CONFIG_LOCALVERSION empty so this is the whole
+# suffix. <rev> is the history index of that board's kernel configuration.
+# build.sh exports OBAKE_KERNEL_LOCALVERSION.
 ifeq ($(OBAKE_KERNEL_LOCALVERSION),)
 $(error OBAKE_KERNEL_LOCALVERSION is unset; run via image/os/buildroot/build.sh)
 endif

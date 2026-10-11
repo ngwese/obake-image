@@ -251,7 +251,8 @@ check_media_automount() {
 	return 0
 }
 
-# OS presents as obake-os (not Buildroot) with VERSION aligned to image-version.
+# OS presents as obake-os. VERSION matches image-version; VERSION_ID adds the
+# image git suffix.
 check_os_identity() {
 	[ -f /etc/os-release ] || return 1
 	# shellcheck disable=SC1091
@@ -260,33 +261,55 @@ check_os_identity() {
 	[ "$ID" = "obake-os" ] || return 1
 	img_ver="$(cat /etc/obake/image-version 2>/dev/null)" || return 1
 	[ "$VERSION" = "$img_ver" ] || return 1
-	[ "$VERSION_ID" = "$img_ver" ] || return 1
-	[ "$PRETTY_NAME" = "obake-os $img_ver" ] || return 1
+	case "$VERSION_ID" in
+	"$img_ver"-gnogit) ;;
+	"$img_ver"-g*)
+		suffix="${VERSION_ID#"$img_ver"-g}"
+		case "$suffix" in
+		*[!0-9a-f]*)
+			case "$suffix" in
+			*-dirty)
+				hex="${suffix%-dirty}"
+				case "$hex" in
+				'' | *[!0-9a-f]*) return 1 ;;
+				esac
+				;;
+			*) return 1 ;;
+			esac
+			;;
+		esac
+		;;
+	*) return 1 ;;
+	esac
+	[ "$PRETTY_NAME" = "obake-os $VERSION_ID" ] || return 1
 	grep -q 'Welcome to obake-os' /etc/issue || return 1
 	! grep -q 'Welcome to Buildroot' /etc/issue || return 1
 	! grep -q '^NAME=Buildroot$' /etc/os-release || return 1
 }
 
-# Kernel release carries board LOCALVERSION (when defined) and -g<sha>[-dirty]
-# (or -gnogit when the build cannot read git metadata).
+# Kernel release ends with -<board>-<rev>. Generic board files store
+# board=generic plus arch, which selects generic-x86_64 or generic-aarch64.
 check_kernel_identity() {
 	rel="$(uname -r)"
-	printf '%s\n' "$rel" | grep -Eq '\-g([0-9a-f]+|nogit)(-dirty)?$' || return 1
 	board="$(sed -n 's/^board=//p' /etc/obake/board 2>/dev/null)"
+	arch="$(sed -n 's/^arch=//p' /etc/obake/board 2>/dev/null)"
 	case "$board" in
-	qdl)
-		printf '%s\n' "$rel" | grep -q -- '-qdl-g' || return 1
+	generic)
+		case "$arch" in
+		x86_64) board_id=generic-x86_64 ;;
+		aarch64) board_id=generic-aarch64 ;;
+		*) return 1 ;;
+		esac
 		;;
-	generic | generic-x86_64 | generic-aarch64)
-		printf '%s\n' "$rel" | grep -q -- '-generic-g' || return 1
-		;;
-	rk35xx)
-		printf '%s\n' "$rel" | grep -q -- '-rk35xx' && return 1
+	generic-x86_64 | generic-aarch64 | rk35xx | qdl)
+		board_id="$board"
 		;;
 	*)
-		# Unknown board: still require git provenance (checked above).
+		return 1
 		;;
 	esac
+	printf '%s\n' "$rel" | grep -Eq -- "-${board_id}-[1-9][0-9]*$" || return 1
+	printf '%s\n' "$rel" | grep -Eq -- '-g([0-9a-f]+|nogit)(-dirty)?$' && return 1
 	return 0
 }
 

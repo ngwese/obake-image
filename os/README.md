@@ -160,17 +160,22 @@ Rockchip SoC drivers. `post-build.sh` records the built kernel version under
 `/etc/obake/kernel` and refuses to produce an image whose kernel is not
 realtime.
 
-Board `linux.config` files set `CONFIG_LOCALVERSION` (`-qdl` for `qdl`,
-`-generic` for both generic boards; `rk35xx` has no board suffix yet).
-`build.sh` passes `-g<shortsha>[-dirty]` from the image git tree as the
-kernel `LOCALVERSION` make variable on every build (same provenance as
-artifact directories), so `uname -r` looks like `7.2.9-qdl-g<shortsha>[-dirty]`.
+`build.sh` passes `-<board>-<rev>` as the kernel `LOCALVERSION` make variable.
+`<board>` is the board id (`generic-x86_64`, `generic-aarch64`, `rk35xx`,
+`qdl`). `<rev>` is the 1-based history index of that board's kernel
+configuration in the image git tree: the same configuration keeps the same
+rev, and an image-only commit does not change it. `uname -r` looks like
+`7.2.9-generic-x86_64-<rev>` or `7.2.9-rk35xx-<rev>`. Board `linux.config`
+files leave `CONFIG_LOCALVERSION` empty so it is not prefixed again.
 
 ### OS identity
 
-Images brand as **obake-os**: `/etc/os-release` has `NAME`/`ID=obake-os`,
-`VERSION`/`VERSION_ID` from `buildroot/VERSION` (or `OBAKE_IMAGE_VERSION`),
-and `PRETTY_NAME="obake-os <version>"`. The login banner (`/etc/issue`) is
+Images brand as **obake-os**: `/etc/os-release` has `NAME`/`ID=obake-os`.
+`VERSION` is the release version from `buildroot/VERSION` (or
+`OBAKE_IMAGE_VERSION`) and matches `/etc/obake/image-version`. `VERSION_ID`
+is that version plus `-g<shortsha>[-dirty]` from the image git tree
+(`-gnogit` when git metadata cannot be read), and
+`PRETTY_NAME="obake-os <VERSION_ID>"`. The login banner (`/etc/issue`) is
 `Welcome to obake-os`.
 
 ### Building

@@ -58,7 +58,7 @@ if [ -n "$serial_cons" ]; then
 fi
 
 # The version of the kernel actually built. Prefer linux's kernel.release
-# (includes board CONFIG_LOCALVERSION + git LOCALVERSION) so a stale
+# (LOCALVERSION is -<board>-<rev>) so a stale
 # lib/modules/<old> tree from an earlier build cannot win the scan.
 kver=""
 kconfig=""
@@ -121,13 +121,17 @@ fi
 # target-finalize before this script runs; replace it with project identity.
 # Also rewrite /etc/issue so incremental builds pick up the banner even when
 # BR2_TARGET_GENERIC_ISSUE has not yet been re-applied to an existing tree.
+git_rev_helper="${extroot}/../scripts/image-git-rev.sh"
+git_sha="$("$git_rev_helper" sha)"
+git_dirty="$("$git_rev_helper" dirty)"
+version_id="${image_version}-g${git_sha}${git_dirty}"
 os_release="${target_dir}/usr/lib/os-release"
 {
 	printf 'NAME=obake-os\n'
 	printf 'ID=obake-os\n'
 	printf 'VERSION=%s\n' "$image_version"
-	printf 'VERSION_ID=%s\n' "$image_version"
-	printf 'PRETTY_NAME="obake-os %s"\n' "$image_version"
+	printf 'VERSION_ID=%s\n' "$version_id"
+	printf 'PRETTY_NAME="obake-os %s"\n' "$version_id"
 } >"$os_release"
 ln -sfn ../usr/lib/os-release "${target_dir}/etc/os-release"
 printf 'Welcome to obake-os\n' >"${target_dir}/etc/issue"
@@ -141,8 +145,8 @@ if ! grep -q 'Welcome to obake-os' "${target_dir}/etc/issue" ||
 	printf '[post-build] error: /etc/issue branding failed\n' >&2
 	exit 1
 fi
-printf '[post-build] os-release NAME=obake-os VERSION=%s\n' \
-	"$image_version" >&2
+printf '[post-build] os-release NAME=obake-os VERSION=%s VERSION_ID=%s\n' \
+	"$image_version" "$version_id" >&2
 
 # Mount points for the writable contract (persist, user, ESP).
 install -d "${target_dir}/persist" "${target_dir}/home" "${target_dir}/boot/efi"

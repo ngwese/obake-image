@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Image-tree git provenance shared by artifact directories and kernel
-# LOCALVERSION injection.
+# Image-tree git provenance shared by artifact directories and os-release
+# VERSION_ID.
 #
 # Usage:
 #   image-git-rev.sh localversion   # -g<shortsha>[-dirty] or -gnogit

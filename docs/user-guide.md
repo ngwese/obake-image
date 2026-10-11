@@ -93,13 +93,17 @@ The userland packages are grouped into `BR2_EXTERNAL` meta-packages:
 layers are added the same way. The realtime kernel is built from the pinned
 source with a shared realtime fragment (`PREEMPT_RT`, 1000 Hz tick) and a
 host fragment (loop/SquashFS/initrd/FAT/dm-verity and the writable-contract
-options). Board configs add a `CONFIG_LOCALVERSION` suffix (`-qdl`,
-`-generic`; `rk35xx` none yet) and the build appends `-g<shortsha>[-dirty]`
-from the image git tree, so `uname -r` identifies board and revision.
+options). The kernel local version is `-<board>-<rev>`, where `<board>` is
+the board id (`generic-x86_64`, `generic-aarch64`, `rk35xx`, `qdl`) and
+`<rev>` is the history index of that board's kernel configuration, so
+`uname -r` looks like `<pinned-kernel-version>-rk35xx-<rev>`. An image-only
+commit does not change it.
 
 The running image presents as **obake-os** in `/etc/os-release` and greets
 with `Welcome to obake-os` at login (`/etc/issue`). `VERSION` matches
-`/etc/obake/image-version` (from `os/buildroot/VERSION`).
+`/etc/obake/image-version` (from `os/buildroot/VERSION`). `VERSION_ID` and
+`PRETTY_NAME` add the image git suffix `-g<shortsha>[-dirty]` (`-gnogit`
+when git metadata cannot be read).
 
 Buildroot cross-compiles and never executes target binaries, so any Linux host
 can build any target image without emulation. See `../os/README.md` for the
