@@ -383,10 +383,14 @@ installer_console() {
 	done <"$profile_file"
 }
 
-# --update must not publish stale installer/disk images left in the Buildroot
-# images tree from an earlier --installer build of the same board output.
+# --update must not publish stale installer images left in the Buildroot
+# images tree from an earlier --installer build of the same board output. An
+# explicit MAKE_DISK=1 keeps this build's disk image.
 if [ "$product" = "update" ]; then
-	rm -f "$out"/installer*.img "$out"/disk-*.img
+	rm -f "$out"/installer*.img
+	if [ "${MAKE_DISK:-0}" != 1 ]; then
+		rm -f "$out"/disk-*.img
+	fi
 fi
 
 # Installer product keeps only this build's installer image and, unless
