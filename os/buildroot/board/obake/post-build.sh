@@ -230,12 +230,10 @@ install -D -m 0755 "${extroot}/../scripts/efi-boot-entries.sh" \
 # Install verification guest checks and apply any BREAK fault injection.
 bash "${extroot}/board/obake/install-verify.sh" "$target_dir"
 
-# Optional SSH public key for the obake user, provisioned into the image.
-if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
-	install -d "${target_dir}/etc/ssh/authorized_keys.d"
-	install -m 0644 "$OBKA_SSH_AUTHORIZED_KEY" \
-		"${target_dir}/etc/ssh/authorized_keys.d/obake"
-fi
+# No build-time authorized key is baked into the rootfs: the key seed is
+# provisioned into the obake user's home on the user partition at install (or
+# disk assembly), so the user can replace it. The sshd config still honors
+# /etc/ssh/authorized_keys.d/%u as an empty operator provisioning fallback.
 
 # OpenSSH's packaged sshd_config does not include the drop-in directory, so the
 # obake settings under /etc/ssh/sshd_config.d would be ignored. Add the include

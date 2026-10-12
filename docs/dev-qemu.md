@@ -24,8 +24,9 @@ log in over SSH to inspect the result.
   `ssh-keygen -t ed25519 -f image/_dev/id`.
 
 The installer propagates the public key given by `OBKA_SSH_AUTHORIZED_KEY` into
-the **install** (the persist partition), so the installed host is reachable over
-SSH and the key survives updates and slot switches.
+the **install** (`~/.ssh/authorized_keys` in the `obake` user's home on the user
+partition), so the installed host is reachable over SSH, the `obake` user can
+replace the key without sudo, and it survives updates and slot switches.
 
 ## Quick path (helper)
 
@@ -94,8 +95,8 @@ OBKA_SSH_AUTHORIZED_KEY="$PWD/image/_dev/id.pub" \
 
 This produces `installer-serial.img` under the board's `virtual` artifact
 directory (printed as `artifact: ...`) plus the per-slot artifacts. The public
-key is carried in the installer medium and seeded onto the installed host's
-persist partition by `install.sh`.
+key is carried in the installer medium and seeded into `obake`'s home on the
+installed host's user partition by `install.sh`.
 
 ### 2. Create the target disk
 

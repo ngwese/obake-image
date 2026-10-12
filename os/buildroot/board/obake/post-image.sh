@@ -129,8 +129,15 @@ if [ "${MAKE_DISK:-1}" = "1" ]; then
 		disk_align="${DISK_ALIGN_MIB:-16}"
 	fi
 	log "assembling disk-$slot.img"
+	# Buildroot applies the users table to per-filesystem copies, not the main
+	# TARGET_DIR, so read obake's ids from the assembled rootfs archive.
+	obake_passwd="$(tar -xOf "$binaries/rootfs.tar" ./etc/passwd 2>/dev/null ||
+		tar -xOf "$binaries/rootfs.tar" etc/passwd 2>/dev/null || true)"
+	obake_uid="$(printf '%s\n' "$obake_passwd" | awk -F: '$1=="obake"{print $3; exit}')"
+	obake_gid="$(printf '%s\n' "$obake_passwd" | awk -F: '$1=="obake"{print $4; exit}')"
 	WORK="$binaries/.disk-work" USER_SIZE_MIB="${USER_SIZE_MIB:-2048}" \
 		DISK_ALIGN_MIB="$disk_align" RAW_BOOTLOADER="$raw_bootloader" \
+		OBKA_USER_UID="$obake_uid" OBKA_USER_GID="$obake_gid" \
 		bash "$scripts/make-disk.sh" "$slot" "$mkarch" "$binaries"
 fi
 

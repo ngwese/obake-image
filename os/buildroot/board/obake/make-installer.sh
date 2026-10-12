@@ -74,6 +74,17 @@ if [ -n "$ssh_key" ] && [ -f "$ssh_key" ]; then
 	install -m 0644 "$ssh_key" "$stage/opt/obake/authorized_key.pub"
 fi
 
+# The installer rootfs is a copy of the main TARGET_DIR, which does not carry
+# the users table (Buildroot applies it per filesystem copy), so obake is not
+# resolvable here. Read obake's ids from the assembled rootfs archive and pass
+# them to install.sh for seeding the user partition.
+obake_passwd="$(tar -xOf "$binaries/rootfs.tar" ./etc/passwd 2>/dev/null ||
+	tar -xOf "$binaries/rootfs.tar" etc/passwd 2>/dev/null || true)"
+obake_uid="$(printf '%s\n' "$obake_passwd" | awk -F: '$1=="obake"{print $3; exit}')"
+obake_gid="$(printf '%s\n' "$obake_passwd" | awk -F: '$1=="obake"{print $4; exit}')"
+[ -n "$obake_uid" ] && [ -n "$obake_gid" ] ||
+	die "obake not found in $binaries/rootfs.tar"
+
 target_disk="${INSTALLER_TARGET_DISK:-/dev/vdb}"
 preserve_user="${INSTALLER_PRESERVE_USER:-1}"
 poweroff_delay="${INSTALLER_POWEROFF_DELAY:-10}"
@@ -103,6 +114,8 @@ EOF
 	printf 'Environment=IMAGES_DIR=/opt/obake/images\n'
 	printf 'Environment=PRESERVE_USER=%s\n' "$preserve_user"
 	[ -n "$ssh_key" ] && printf 'Environment=OBKA_SSH_AUTHORIZED_KEY=/opt/obake/authorized_key.pub\n'
+	printf 'Environment=OBKA_USER_UID=%s\n' "$obake_uid"
+	printf 'Environment=OBKA_USER_GID=%s\n' "$obake_gid"
 	printf 'Environment=LAYOUT_ENV=/opt/os/partition-layout.env\n'
 	# Keep install.sh stdin on the selected console through the poweroff wait
 	# so interactive confirmation can read from the same TTY.

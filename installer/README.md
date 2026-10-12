@@ -32,9 +32,13 @@ cannot be confused with the target.
 ## SSH access
 
 Set `OBKA_SSH_AUTHORIZED_KEY` to a public key file when building or installing
-to seed it for the `obake` user on the persist partition; the installed host is
-then reachable over SSH. For a hands-on QEMU/KVM walkthrough (set up a VM,
-install, and log in), see `../docs/dev-qemu.md`.
+to seed it for the `obake` user. The build carries the key as a seed in the
+installer medium (and in a `MAKE_DISK` disk image); `install.sh` writes it to
+`~/.ssh/authorized_keys` on the user partition, owned by `obake`, only when the
+user has no key, so a reinstall that preserves user data never overwrites a
+user-managed key. The installed host is then reachable over SSH and the user
+can replace the key without sudo. For a hands-on QEMU/KVM walkthrough (set up a
+VM, install, and log in), see `../docs/dev-qemu.md`.
 
 ## Reinstall preserving user data
 
@@ -141,7 +145,7 @@ Overrides:
 | `ACTIVE_SLOT`   | `a`                           | slot to boot by default       |
 | `PRESERVE_USER` | `1`                           | keep an existing user partition |
 | `LAYOUT`        | `<repo>/os/partition-layout.json` | layout metadata           |
-| `OBKA_SSH_AUTHORIZED_KEY` | unset               | public key seeded for the `obake` user |
+| `OBKA_SSH_AUTHORIZED_KEY` | unset               | public key seeded into the `obake` user's home |
 
 Build-time installer knobs (in addition to `CONSOLE` / `INSTALLER_TARGET_DISK`):
 

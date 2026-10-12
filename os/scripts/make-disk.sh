@@ -130,8 +130,27 @@ for s in a b; do
   dd_at "$img" "root_$s"
 done
 
-# --- Persist and user: empty but correctly labeled filesystems --------------
+# --- Persist and user: labeled filesystems; the user partition is seeded with
+# the obake authorized key when the build carries one, so a flashed disk and
+# the verification harnesses have the same seed the installer would provision.
+# The filesystem is populated without mounting, so ownership is applied under
+# fakeroot (mke2fs -d copies the source ownership).
 tmp="$work/empty.img"
+seed_stage=""
+obake_uid="${OBKA_USER_UID:-}"
+obake_gid="${OBKA_USER_GID:-}"
+if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
+  [ -n "$obake_uid" ] && [ -n "$obake_gid" ] ||
+    die "OBKA_USER_UID/OBKA_USER_GID required to seed the user partition"
+  seed_stage="$work/user-seed"
+  rm -rf "$seed_stage"
+  # The user partition is mounted at /home, so its root is /home and obake's
+  # home is /obake within it.
+  install -d "$seed_stage/obake/.ssh"
+  install -m 0600 "$OBKA_SSH_AUTHORIZED_KEY" \
+    "$seed_stage/obake/.ssh/authorized_keys"
+fi
+
 for role in persist user; do
   bytes=$(( (part_end["$role"] - part_start["$role"] + 1) * sector ))
   rm -f "$tmp"
@@ -144,7 +163,21 @@ for p in data["partitions"]:
         print(p["label"])
 PY
 )"
-  mke2fs -q -t ext4 -L "$label" "$tmp"
+  if [ "$role" = user ] && [ -n "$seed_stage" ]; then
+    OBKA_FS_IMAGE="$tmp" OBKA_FS_LABEL="$label" OBKA_FS_STAGE="$seed_stage" \
+      OBKA_FS_UID="$obake_uid" OBKA_FS_GID="$obake_gid" \
+      fakeroot bash -c '
+        set -e
+        chown -R "$OBKA_FS_UID:$OBKA_FS_GID" "$OBKA_FS_STAGE/obake"
+        chmod 0755 "$OBKA_FS_STAGE/obake"
+        chmod 0700 "$OBKA_FS_STAGE/obake/.ssh"
+        chmod 0600 "$OBKA_FS_STAGE/obake/.ssh/authorized_keys"
+        mke2fs -q -t ext4 -L "$OBKA_FS_LABEL" -d "$OBKA_FS_STAGE" \
+          -E root_owner=0:0 "$OBKA_FS_IMAGE"
+      '
+  else
+    mke2fs -q -t ext4 -L "$label" "$tmp"
+  fi
   dd_at "$tmp" "$role"
 done
 

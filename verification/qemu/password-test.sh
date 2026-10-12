@@ -4,7 +4,9 @@ set -euo pipefail
 # Optional build-time password verification. Builds once without OBKA_PASSWORD
 # and asserts password login stays disabled, then builds with OBKA_PASSWORD,
 # boots under QEMU, and logs in as obake over SSH using that password
-# (password authentication only — no authorized key).
+# (password authentication only — no authorized key). It then changes the
+# password without sudo via passwd, switches slots, and proves the changed
+# password survived.
 #
 # Usage: password-test.sh [arch]
 
@@ -17,6 +19,9 @@ out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/password}"
 boot_timeout="${SSH_BOOT_TIMEOUT:-180}"
 ssh_port="${PASSWORD_TEST_PORT:-2223}"
 test_password="${OBKA_TEST_PASSWORD:-obake-test-pw}"
+# The new password must pass busybox's weak-password check for non-root users,
+# which rejects a password containing the account name.
+new_password="${OBKA_TEST_PASSWORD_NEW:-7c4f-K2m9-Qz3p}"
 
 log() { printf '[password-test] %s\n' "$*" >&2; }
 fail() { printf '[password-test] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -74,31 +79,36 @@ dropin="$(tar_cat "$pass_tar" etc/ssh/sshd_config.d/obake-password.conf 2>/dev/n
 printf '%s\n' "$dropin" | grep -q '^PasswordAuthentication yes$' ||
 	fail "obake-password.conf does not enable PasswordAuthentication"
 
-printf '%s\n' "$test_password" >"$out/password.txt"
-chmod 600 "$out/password.txt"
+# The askpass helper reads whatever password is current, so it can be updated
+# after an in-place password change.
+write_password_file() {
+	printf '%s\n' "$1" >"$out/password.txt"
+	chmod 600 "$out/password.txt"
+}
+write_password_file "$test_password"
 cat >"$out/askpass" <<EOF
 #!/bin/sh
 cat '$out/password.txt'
 EOF
 chmod 700 "$out/askpass"
 
-efi_vars="$out/vars.fd"
-cp "$OVMF_VARS" "$efi_vars"
-log_file="$out/qemu.log"
-
-log "booting (accel=$OBKA_QEMU_ACCEL_NAME cpu=$OBKA_QEMU_CPU)"
-# shellcheck disable=SC2086
-"$OBKA_QEMU_BIN" \
-	$OBKA_QEMU_MACHINE_ARGS -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-	-m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
-	$OBKA_QEMU_FW_ARGS \
-	-drive if=pflash,format=raw,file="$efi_vars" \
-	-drive file="$disk",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
-	-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${ssh_port}-:22" \
-	-device virtio-net-pci,netdev=n0 \
-	-nographic >"$log_file" 2>&1 &
-qemu_pid=$!
-trap 'kill "$qemu_pid" 2>/dev/null || true' EXIT
+qemu_pid=""
+boot() { # boot <phase>
+	local vars="$out/$1.fd"
+	cp "$OVMF_VARS" "$vars"
+	# shellcheck disable=SC2086
+	"$OBKA_QEMU_BIN" \
+		$OBKA_QEMU_MACHINE_ARGS -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
+		-m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
+		$OBKA_QEMU_FW_ARGS \
+		-drive if=pflash,format=raw,file="$vars" \
+		-drive file="$disk",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
+		-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${ssh_port}-:22" \
+		-device virtio-net-pci,netdev=n0 \
+		-nographic >"$out/$1.log" 2>&1 &
+	qemu_pid=$!
+	trap 'kill "$qemu_pid" 2>/dev/null || true' EXIT
+}
 
 ssh_pw() {
 	# Prefer password auth; do not offer a key.
@@ -115,13 +125,13 @@ ssh_pw() {
 			obake@127.0.0.1 "$@"
 }
 
-log "waiting for SSH password login as obake"
-ready=0
-for _ in $(seq 1 "$boot_timeout"); do
-	if ssh_pw true 2>/dev/null; then ready=1; break; fi
-	sleep 3
-done
-if [ "$ready" != 1 ]; then
+wait_pw() {
+	local _ log_file="$1"
+	log "waiting for SSH password login as obake"
+	for _ in $(seq 1 "$boot_timeout"); do
+		if ssh_pw true 2>/dev/null; then return 0; fi
+		sleep 3
+	done
 	port_state=closed
 	(exec 3<>"/dev/tcp/127.0.0.1/$ssh_port") 2>/dev/null && port_state=open
 	DISPLAY= SSH_ASKPASS="$out/askpass" SSH_ASKPASS_REQUIRE=force \
@@ -134,11 +144,45 @@ if [ "$ready" != 1 ]; then
 			-o ConnectTimeout=5 \
 			obake@127.0.0.1 true >"$out/ssh-debug.log" 2>&1 || true
 	fail "could not log in over SSH with password (port $port_state); see $out/ssh-debug.log and $log_file"
-fi
+}
+
+stop_qemu() {
+	local _
+	for _ in $(seq 1 60); do
+		kill -0 "$qemu_pid" 2>/dev/null || return 0
+		sleep 1
+	done
+	kill "$qemu_pid" 2>/dev/null || true
+	return 0
+}
+
+# --- Phase 1: password login, no-sudo change, slot switch -------------------
+boot phase1
+wait_pw "$out/phase1.log"
 
 who="$(ssh_pw 'id -un' 2>/dev/null)" || fail "password SSH command failed"
 [ "$who" = "obake" ] || fail "expected user obake, got: $who"
 
-kill "$qemu_pid" 2>/dev/null || true
+log "changing the password without sudo (passwd)"
+# busybox passwd reads old/new/retype lines from stdin when not on a tty.
+printf '%s\n%s\n%s\n' "$test_password" "$new_password" "$new_password" |
+	ssh_pw passwd >/dev/null 2>&1 || fail "non-sudo passwd change failed"
+write_password_file "$new_password"
+ssh_pw true >/dev/null 2>&1 || fail "the changed password did not authenticate"
+log "password changed without sudo; new password works"
+
+log "switching slots (obake-update rollback)"
+ssh_pw 'obake-update rollback' >/dev/null 2>&1 || fail "obake-update rollback failed"
+ssh_pw 'systemctl poweroff' >/dev/null 2>&1 || true
+stop_qemu
+
+# --- Phase 2: the changed password survives the slot switch -----------------
+boot phase2
+wait_pw "$out/phase2.log"
+ssh_pw true >/dev/null 2>&1 || fail "the changed password did not survive the slot switch"
+log "changed password survived the slot switch"
+ssh_pw 'systemctl poweroff' >/dev/null 2>&1 || true
+stop_qemu
 trap - EXIT
-printf 'PASS: default password disabled; OBKA_PASSWORD enables SSH password login\n'
+
+printf 'PASS: default password disabled; OBKA_PASSWORD login; no-sudo change; slot persistence\n'

@@ -151,7 +151,9 @@ OBAKE_PROFILE=default image/os/buildroot/build.sh qdl -j"$(nproc)"
 pinned inputs, then builds. Both wrappers forward the build knobs
 (`MAKE_INSTALLER`, `MAKE_DISK`, `CONSOLE`, `INSTALLER_TARGET_DISK`,
 `RAUC_SIGNING_*`, `OBKA_SSH_AUTHORIZED_KEY`, `OBKA_PASSWORD`, and the
-verification `VERIFY*`/`BREAK` switches).
+verification `VERIFY*`/`BREAK` switches). `OBKA_SSH_AUTHORIZED_KEY` accepts a
+public key file at any host path and on either macOS or Linux; the build stages
+it so the container can read it.
 
 Images are staged under
 `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/` (containerized
@@ -313,7 +315,9 @@ the reinstall behavior.
 ## 6. SSH access
 
 By default the `obake` login user has no password; access is by SSH key.
-Authorized keys are read from `/etc/ssh/authorized_keys.d/obake`.
+Authorized keys are read from `~/.ssh/authorized_keys` on the user partition
+(`/home/obake/.ssh/authorized_keys`), which the `obake` user owns and can
+replace over SSH without sudo.
 
 Generate a key on your workstation and keep the private half where you
 generated it:
@@ -324,26 +328,34 @@ ssh-keygen -t ed25519 -f ~/.ssh/obake_id
 # private: ~/.ssh/obake_id       (stays on your workstation)
 ```
 
-Seed the **public** key by pointing `OBKA_SSH_AUTHORIZED_KEY` at it:
+Seed the **public** key by pointing `OBKA_SSH_AUTHORIZED_KEY` at it. The path
+may be anywhere on the build host (inside or outside the repository) and works
+on macOS and Linux:
 
-- at build time, it is installed into the image at
-  `/etc/ssh/authorized_keys.d/obake`;
-- at install time, `install.sh` copies it onto the persist partition, so it
-  survives updates and slot switches.
+- the build stages the file and carries it as a **seed** in the installer
+  medium (and in a `MAKE_DISK` disk image);
+- at install time, `install.sh` writes it to `~/.ssh/authorized_keys` on the
+  user partition, owned by `obake`, only when the user has no key yet;
+- because `/home` is retained across updates and user-preserving reinstalls,
+  the key stays put, and `obake` can replace it over SSH with no sudo.
 
 ```
 OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
   image/build/build.sh qdl --installer
 ```
 
+To replace the seeded key later, edit `~/.ssh/authorized_keys` as `obake`; the
+seeded key stops working once it is removed.
+
 Then log in as `obake` once the host is on the network.
 
 Optionally set a build-time password with `OBKA_PASSWORD`. When non-empty, the
 image hashes it into the `obake` account and enables SSH password
 authentication as `obake` (local console login uses the same password). The
-hash lives only in the image rootfs — not on the persist partition — so an
-OTA/slot switch replaces it with whatever the new image carries. Anyone with
-the image artifact can offline-attack the hash; treat it as a shared device
+hash lives in the image rootfs, not on the persist partition, so an OTA/slot
+switch replaces the seed password unless `obake` has changed it — a changed
+password is held in the persistent `/etc` overlay and is kept. Anyone with the
+image artifact can offline-attack the hash; treat it as a shared device
 secret, not a high-value credential, and do not commit the cleartext.
 
 ```
@@ -351,6 +363,11 @@ OBKA_PASSWORD='choose-a-secret' \
   OBKA_SSH_AUTHORIZED_KEY="$HOME/.ssh/obake_id.pub" \
   image/build/build.sh qdl --installer
 ```
+
+Once a password is set, `obake` can change it without sudo by running
+`passwd`. On a key-only host (no `OBKA_PASSWORD`) the account has no password
+and `passwd` will not set a first one without elevation; use `sudo passwd
+obake` or seed `OBKA_PASSWORD` at build time.
 
 There is **no SSH keypair generated at build time** — the build consumes a
 public key you supply, and the private half never leaves your workstation. (The

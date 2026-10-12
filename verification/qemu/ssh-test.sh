@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# SSH directory-contract verification. Builds a disk image with the obake user
-# and an injected authorized key, boots it with a forwarded SSH port, and:
-#   - logs in over SSH as the obake user (proves SSH access and the key setup);
+# SSH credential verification. Builds a disk image with the obake user and an
+# injected authorized key seed, boots it with a forwarded SSH port, and:
+#   - logs in over SSH as the obake user with the seeded key;
 #   - writes within the contract (/home/obake) successfully;
-#   - cannot write to /etc or the read-only root.
+#   - cannot write to /etc or the read-only root;
+#   - replaces its authorized key in place and proves the seed is retired;
+#   - switches slots and proves the replacement key survived.
 #
 # The image is built through the verification build wrapper (which uses the
 # Buildroot build container when Docker is available) and booted under the
@@ -38,95 +40,126 @@ MAKE_DISK=1 OBKA_SSH_AUTHORIZED_KEY="$out/id.pub" \
 
 disk="$out/image/disk-a.img"
 [ -f "$disk" ] || fail "no disk image ($disk)"
-efi_vars="$out/vars.fd"
-cp "$OVMF_VARS" "$efi_vars"
-log_file="$out/qemu.log"
 
-log "booting (accel=$OBKA_QEMU_ACCEL_NAME cpu=$OBKA_QEMU_CPU)"
-# shellcheck disable=SC2086
-"$OBKA_QEMU_BIN" \
-	$OBKA_QEMU_MACHINE_ARGS -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
-	-m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
-	$OBKA_QEMU_FW_ARGS \
-	-drive if=pflash,format=raw,file="$efi_vars" \
-	-drive file="$disk",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
-	-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${ssh_port}-:22" \
-	-device virtio-net-pci,netdev=n0 \
-	-nographic >"$log_file" 2>&1 &
-qemu_pid=$!
-trap 'kill "$qemu_pid" 2>/dev/null || true' EXIT
-
-ssh_opts=(-i "$out/id" -p "$ssh_port" -o StrictHostKeyChecking=no
+ssh_opts=(-p "$ssh_port" -o StrictHostKeyChecking=no
 	-o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=3
 	-o PreferredAuthentications=publickey -o IdentitiesOnly=yes)
-ssh_run() { ssh "${ssh_opts[@]}" obake@127.0.0.1 "$@"; }
+ssh_run_key() { # ssh_run_key <key> <remote-command...>
+	local key="$1"
+	shift
+	ssh -i "$key" "${ssh_opts[@]}" obake@127.0.0.1 "$@"
+}
 
-log "waiting for sshd"
-ready=0
-for _ in $(seq 1 "$boot_timeout"); do
-	if ssh_run true 2>/dev/null; then ready=1; break; fi
-	sleep 3
-done
-if [ "$ready" != 1 ]; then
-	port_state=closed
-	(exec 3<>"/dev/tcp/127.0.0.1/$ssh_port") 2>/dev/null && port_state=open
-	ssh -vvv "${ssh_opts[@]}" -o ConnectTimeout=5 obake@127.0.0.1 true \
+qemu_pid=""
+boot() { # boot <phase>
+	local vars="$out/$1.fd"
+	cp "$OVMF_VARS" "$vars"
+	# shellcheck disable=SC2086
+	"$OBKA_QEMU_BIN" \
+		$OBKA_QEMU_MACHINE_ARGS -accel "$OBKA_QEMU_ACCEL_NAME" -cpu "$OBKA_QEMU_CPU" \
+		-m "$OBKA_QEMU_MEM" -smp "$OBKA_QEMU_SMP" -no-reboot \
+		$OBKA_QEMU_FW_ARGS \
+		-drive if=pflash,format=raw,file="$vars" \
+		-drive file="$disk",format=raw,if=virtio,"$OBKA_QEMU_DISK_OPTS" \
+		-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${ssh_port}-:22" \
+		-device virtio-net-pci,netdev=n0 \
+		-nographic >"$out/$1.log" 2>&1 &
+	qemu_pid=$!
+	trap 'kill "$qemu_pid" 2>/dev/null || true' EXIT
+}
+
+wait_ssh() { # wait_ssh <key>
+	local key="$1" _
+	log "waiting for sshd (key ${key##*/})"
+	for _ in $(seq 1 "$boot_timeout"); do
+		if ssh_run_key "$key" true 2>/dev/null; then return 0; fi
+		sleep 3
+	done
+	ssh -vvv -i "$key" "${ssh_opts[@]}" -o ConnectTimeout=5 obake@127.0.0.1 true \
 		>"$out/ssh-debug.log" 2>&1 || true
-	fail "could not log in over SSH (port $port_state); see $out/ssh-debug.log and $log_file"
-fi
+	fail "could not log in over SSH with ${key##*/}; see $out/ssh-debug.log"
+}
+
+stop_qemu() {
+	local _
+	for _ in $(seq 1 60); do
+		kill -0 "$qemu_pid" 2>/dev/null || return 0
+		sleep 1
+	done
+	kill "$qemu_pid" 2>/dev/null || true
+	return 0
+}
+
+# --- Phase 1: contract, permissions, key replacement, slot switch -----------
+boot phase1
+wait_ssh "$out/id"
 
 log "checking the directory contract over SSH"
-home_out="$(ssh_run 'echo ok > /home/obake/contract-ok && echo HOME_WRITE_OK' 2>&1)" ||
+home_out="$(ssh_run_key "$out/id" 'echo ok > /home/obake/contract-ok && echo HOME_WRITE_OK' 2>&1)" ||
 	fail "user could not write within the contract: $home_out"
 printf '%s\n' "$home_out" | grep -q HOME_WRITE_OK || fail "contract write failed"
 
-if ssh_run 'touch /etc/obake-should-fail' 2>/dev/null; then
+if ssh_run_key "$out/id" 'touch /etc/obake-should-fail' 2>/dev/null; then
 	fail "user was able to write to /etc"
 fi
-if ssh_run 'touch /obake-root-probe' 2>/dev/null; then
+if ssh_run_key "$out/id" 'touch /obake-root-probe' 2>/dev/null; then
 	fail "user was able to write to the read-only root"
 fi
 
 log "checking polkit-granted systemctl as obake"
-if ! ssh_run 'systemctl restart obake-launcher.service' >/dev/null 2>&1; then
+if ! ssh_run_key "$out/id" 'systemctl restart obake-launcher.service' >/dev/null 2>&1; then
 	fail "obake could not manage a unit via polkit without authentication"
 fi
 
 log "checking diagnostics access as obake"
-if ! ssh_run 'dmesg >/dev/null 2>&1'; then
+if ! ssh_run_key "$out/id" 'dmesg >/dev/null 2>&1'; then
 	fail "obake could not read the kernel log via dmesg"
 fi
 # A non-member of systemd-journal only sees its own messages; require an entry
 # from a service the user does not own to prove full-journal access.
-if ! ssh_run 'journalctl -b -u ssh.service --no-pager -n 1 2>/dev/null | grep -q .'; then
+if ! ssh_run_key "$out/id" 'journalctl -b -u ssh.service --no-pager -n 1 2>/dev/null | grep -q .'; then
 	fail "obake could not read the full system journal via journalctl"
 fi
 
 log "checking login accounting (last / wtmp) as obake"
 # OpenSSH only writes wtmp when a PTY is allocated; force one with -tt.
-if ! ssh -tt "${ssh_opts[@]}" obake@127.0.0.1 \
+if ! ssh -tt -i "$out/id" "${ssh_opts[@]}" obake@127.0.0.1 \
 	'last 2>/dev/null | grep -q obake' >/dev/null 2>&1; then
 	fail "last did not succeed or did not list the obake SSH session"
 fi
 
 log "checking lingering user bus via login shell (systemctl --user)"
-# Remote ssh commands are non-login; exercise profile.d with bash -lc without
-# exporting XDG_RUNTIME_DIR / DBUS_SESSION_BUS_ADDRESS in the harness.
-if ! ssh_run 'bash -lc "systemctl --user status"' >/dev/null 2>&1; then
+if ! ssh_run_key "$out/id" 'bash -lc "systemctl --user status"' >/dev/null 2>&1; then
 	fail "systemctl --user failed in a login shell (user-bus env missing?)"
 fi
 
-# Power control should also be granted; the guest then powers off and QEMU
-# exits (the run uses -no-reboot).
-log "checking polkit-granted poweroff as obake"
-ssh_run 'systemctl poweroff' >/dev/null 2>&1 || true
-for _ in $(seq 1 60); do
-	kill -0 "$qemu_pid" 2>/dev/null || break
-	sleep 1
-done
-if kill -0 "$qemu_pid" 2>/dev/null; then
-	kill "$qemu_pid" 2>/dev/null || true
-	fail "obake could not power off the host via polkit"
+log "replacing the authorized key in place (no sudo)"
+ssh-keygen -q -t ed25519 -N '' -f "$out/id2"
+ssh -i "$out/id" "${ssh_opts[@]}" obake@127.0.0.1 \
+	'umask 077; cat > ~/.ssh/authorized_keys' <"$out/id2.pub" ||
+	fail "could not write ~/.ssh/authorized_keys over SSH"
+if ssh_run_key "$out/id" true 2>/dev/null; then
+	fail "the seeded key still authenticates after replacement"
 fi
+ssh_run_key "$out/id2" true >/dev/null 2>&1 ||
+	fail "the replacement key did not authenticate"
+log "seeded key retired; replacement key works"
+
+log "switching slots (obake-update rollback)"
+ssh_run_key "$out/id2" 'obake-update rollback' >/dev/null 2>&1 ||
+	fail "obake-update rollback failed"
+ssh_run_key "$out/id2" 'systemctl poweroff' >/dev/null 2>&1 || true
+stop_qemu
+
+# --- Phase 2: the replacement key survives the slot switch ------------------
+boot phase2
+wait_ssh "$out/id2"
+if ssh_run_key "$out/id" true 2>/dev/null; then
+	fail "the retired seed key works again after a slot switch"
+fi
+log "replacement key survived the slot switch; seed still retired"
+ssh_run_key "$out/id2" 'systemctl poweroff' >/dev/null 2>&1 || true
+stop_qemu
 trap - EXIT
-printf 'PASS: SSH access, directory contract, polkit systemctl, and diagnostics\n'
+
+printf 'PASS: SSH access, directory contract, key seeding, replacement, and slot persistence\n'

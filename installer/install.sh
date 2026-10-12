@@ -191,13 +191,6 @@ EOF
     ssh-keygen -q -t ed25519 -N '' -f "$persist/etc/ssh/ssh_host_ed25519_key"
     ssh-keygen -q -t rsa -b 3072 -N '' -f "$persist/etc/ssh/ssh_host_rsa_key"
   fi
-  # Seed an SSH authorized key for the obake user on the persist partition, so
-  # the installed host is reachable regardless of slot/update.
-  if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
-    install -d "$persist/etc/ssh/authorized_keys.d"
-    install -m 0644 "$OBKA_SSH_AUTHORIZED_KEY" \
-      "$persist/etc/ssh/authorized_keys.d/obake"
-  fi
 }
 
 install_boot() {
@@ -250,10 +243,31 @@ seed_persist() {
 }
 
 seed_user() {
-  local user="/run/obka-user"
+  local user="/run/obka-user" home uid gid target
   mkdir -p "$user"
   mount "$(rolepart user)" "$user"
-  mkdir -p "$user/home"
+  # The user partition mounts at /home, so its root is /home and obake's home
+  # is /obake within it.
+  home="$user/obake"
+  uid="${OBKA_USER_UID:-$(id -u obake 2>/dev/null || true)}"
+  gid="${OBKA_USER_GID:-$(id -g obake 2>/dev/null || true)}"
+  [ -n "$uid" ] && [ -n "$gid" ] ||
+    die "obake user not found in the installer environment"
+  mkdir -p "$home"
+  chown "$uid:$gid" "$home"
+  chmod 0755 "$home"
+  # Seed the build-time authorized key for obake into the user's home on the
+  # user partition, only when the user has no key yet, so a reinstall that
+  # preserves user data never overwrites a user-managed key. The user owns the
+  # file and can replace it without elevated privileges.
+  if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; then
+    target="$home/.ssh/authorized_keys"
+    if [ ! -e "$target" ]; then
+      install -d -m 0700 -o "$uid" -g "$gid" "$home/.ssh"
+      install -m 0600 -o "$uid" -g "$gid" \
+        "$OBKA_SSH_AUTHORIZED_KEY" "$target"
+    fi
+  fi
   umount "$user"
 }
 

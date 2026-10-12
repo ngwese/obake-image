@@ -27,6 +27,28 @@ image_root="$(cd "$here/.." && pwd)"
 project_root="$(cd "$here/../.." && pwd)"
 signing_dir="$image_root/_build/signing"
 
+# Portable absolute path. GNU realpath -m resolves paths that need not exist;
+# BSD/macOS realpath lacks -m, so fall back to resolving the parent directory.
+abspath() {
+	local p="$1" dir base
+	case "$p" in
+	/*) ;;
+	*) p="$(pwd)/$p" ;;
+	esac
+	if command -v realpath >/dev/null 2>&1 &&
+		realpath -m -- "$p" >/dev/null 2>&1; then
+		realpath -m -- "$p"
+		return
+	fi
+	dir="$(dirname -- "$p")"
+	base="$(basename -- "$p")"
+	if [ -d "$dir" ]; then
+		printf '%s/%s\n' "$(cd "$dir" && pwd -P)" "$base"
+	else
+		printf '%s\n' "$p"
+	fi
+}
+
 usage() {
 	printf 'usage: %s [--print-dir] <board> [profile] --installer|--update [--] [make-args...]\n' \
 		"$0" >&2
@@ -103,7 +125,9 @@ Environment variables (build-time knobs):
     OBAKE_IMAGE_VERSION    Override image version (else VERSION file)
     OBKA_IMAGE_VERSION     Alias forwarded into the build container
     OBKA_SSH_AUTHORIZED_KEY
-                           Path to public key baked for obake SSH
+                           Public key file seeded for obake SSH; any host
+                           path is accepted and staged into the build, and a
+                           non-readable path fails the build
     OBKA_PASSWORD          Build-time password for obake (enables SSH
                            password auth); empty/unset = key-only
     LOCAL_BUNDLE           Path written into /etc/obake/update.conf
@@ -263,6 +287,23 @@ esac
 export OBAKE_PROFILE="$profile"
 export OBAKE_BOARD="$board"
 
+# Credential inputs are host files. Stage the SSH key into the build tree so
+# the build container (which mounts only /work) can read it wherever it lives
+# on the host, and fail loudly on an unreadable path instead of silently
+# skipping the seed.
+if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ]; then
+	key_src="$(abspath "$OBKA_SSH_AUTHORIZED_KEY")"
+	if [ ! -f "$key_src" ] || [ ! -r "$key_src" ]; then
+		printf '[build] error: OBKA_SSH_AUTHORIZED_KEY is not a readable file: %s\n' \
+			"$OBKA_SSH_AUTHORIZED_KEY" >&2
+		exit 1
+	fi
+	seeds_dir="$image_root/_build/seeds"
+	mkdir -p "$seeds_dir"
+	install -m 0644 "$key_src" "$seeds_dir/authorized_key.pub"
+	export OBKA_SSH_AUTHORIZED_KEY="$seeds_dir/authorized_key.pub"
+fi
+
 stage_images() { # stage_images <src-images-dir>
 	local src="$1" f
 	rm -rf "$out"
@@ -319,7 +360,7 @@ if command -v docker >/dev/null 2>&1; then
 		/*) ;;
 		*) val="$(pwd)/$val" ;;
 		esac
-		val="$(realpath -m -- "$val")"
+		val="$(abspath "$val")"
 		export "$v=$(printf '%s' "$val" | sed "s#^$project_root#/work#")"
 	done
 	"$here/build-env/run.sh" bash image/os/buildroot/build.sh "$board" \

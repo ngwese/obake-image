@@ -33,6 +33,9 @@ if [ ! -f "$phase_file" ]; then
 	echo transient >/var/tmp/obake-transient 2>/dev/null || fail "var-tmp-write"
 	echo transient >/tmp/obake-tmp-marker 2>/dev/null || fail "tmp-write"
 	echo user >/home/obake/obake-user-marker 2>/dev/null || fail "user-write"
+	mkdir -p /home/obake/.ssh 2>/dev/null || fail "ssh-dir-write"
+	printf 'ssh-ed25519 AAAA persist-marker\n' >/home/obake/.ssh/authorized_keys 2>/dev/null ||
+		fail "authorized-keys-write"
 	printf 'OBKA_PERSIST_PHASE1_PASS\n'
 	echo 1 >"$phase_file"
 	finish
@@ -44,6 +47,8 @@ if [ "$phase" = "1" ]; then
 	[ ! -e /var/tmp/obake-transient ] || fail "transient-retained"
 	[ ! -e /tmp/obake-tmp-marker ] || fail "tmp-retained"
 	[ "$(cat /home/obake/obake-user-marker 2>/dev/null)" = user ] || fail "user-lost-across-reboot"
+	grep -q persist-marker /home/obake/.ssh/authorized_keys 2>/dev/null ||
+		fail "credentials-lost-across-reboot"
 	printf 'OBKA_PERSIST_PHASE2_PASS\n'
 	echo 2 >"$phase_file"
 	obake-update rollback >/tmp/obake-persist-rollback.log 2>&1 || fail "rollback"
@@ -55,6 +60,8 @@ check_topology || fail "topology-slot"
 [ ! -e /var/tmp/obake-transient ] || fail "transient-retained-slot"
 [ ! -e /tmp/obake-tmp-marker ] || fail "tmp-retained-slot"
 [ "$(cat /home/obake/obake-user-marker 2>/dev/null)" = user ] || fail "user-lost-across-slot"
+grep -q persist-marker /home/obake/.ssh/authorized_keys 2>/dev/null ||
+	fail "credentials-lost-across-slot"
 printf 'OBKA_PERSIST_PHASE3_PASS\n'
 rm -f "$phase_file"
 finish
