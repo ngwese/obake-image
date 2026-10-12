@@ -17,8 +17,8 @@ mountpoint -q /sys/firmware/efi/efivars || exit 0
 esp="$(findmnt -no SOURCE /boot/efi 2>/dev/null || true)"
 [ -n "$esp" ] || exit 0
 
-disk="$(lsblk -no PKNAME "$esp" 2>/dev/null | head -1)"
-part="$(lsblk -no PARTN "$esp" 2>/dev/null | head -1)"
+disk="$(lsblk -nro PKNAME "$esp" 2>/dev/null | head -1)"
+part="$(lsblk -nro PARTN "$esp" 2>/dev/null | head -1)"
 [ -n "$disk" ] && [ -n "$part" ] || exit 0
 disk="/dev/$disk"
 
