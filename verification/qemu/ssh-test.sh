@@ -7,7 +7,8 @@ set -euo pipefail
 #   - writes within the contract (/home/obake) successfully;
 #   - cannot write to /etc or the read-only root;
 #   - replaces its authorized key in place and proves the seed is retired;
-#   - switches slots and proves the replacement key survived.
+#   - boots with the seeded host name, renames the host without sudo, and
+#     proves the rename survives a slot switch.
 #
 # The image is built through the verification build wrapper (which uses the
 # Buildroot build container when Docker is available) and booted under the
@@ -23,6 +24,8 @@ board="$(obka_board "$arch")"
 out="${OUT_BASE:-$image_root/_verify/$OBKA_ARCH/ssh}"
 boot_timeout="${SSH_BOOT_TIMEOUT:-180}"
 ssh_port="${SSH_TEST_PORT:-2222}"
+seed_hostname="obake-ssh1"
+new_hostname="obake-ssh2"
 
 log() { printf '[ssh-test] %s\n' "$*" >&2; }
 fail() { printf '[ssh-test] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -34,7 +37,7 @@ log "generating test key pair"
 ssh-keygen -q -t ed25519 -N '' -f "$out/id"
 
 log "building image"
-MAKE_DISK=1 OBKA_SSH_AUTHORIZED_KEY="$out/id.pub" \
+MAKE_DISK=1 OBKA_SSH_AUTHORIZED_KEY="$out/id.pub" OBKA_HOSTNAME="$seed_hostname" \
 	OBAKE_OUTDIR="$out/image" bash "$buildsh" "$board" virtual --update \
 	>"$out/build.log" 2>&1
 
@@ -133,6 +136,18 @@ if ! ssh_run_key "$out/id" 'bash -lc "systemctl --user status"' >/dev/null 2>&1;
 	fail "systemctl --user failed in a login shell (user-bus env missing?)"
 fi
 
+log "checking the seeded host name"
+got_host="$(ssh_run_key "$out/id" 'hostname')"
+[ "$got_host" = "$seed_hostname" ] ||
+	fail "expected seeded host name $seed_hostname, got '$got_host'"
+
+log "renaming the host without sudo (hostnamectl)"
+ssh_run_key "$out/id" "hostnamectl set-hostname $new_hostname" >/dev/null 2>&1 ||
+	fail "obake could not rename the host without sudo"
+got_host="$(ssh_run_key "$out/id" 'hostname')"
+[ "$got_host" = "$new_hostname" ] ||
+	fail "host name did not change to $new_hostname (got '$got_host')"
+
 log "replacing the authorized key in place (no sudo)"
 ssh-keygen -q -t ed25519 -N '' -f "$out/id2"
 ssh -i "$out/id" "${ssh_opts[@]}" obake@127.0.0.1 \
@@ -158,8 +173,12 @@ if ssh_run_key "$out/id" true 2>/dev/null; then
 	fail "the retired seed key works again after a slot switch"
 fi
 log "replacement key survived the slot switch; seed still retired"
+got_host="$(ssh_run_key "$out/id2" 'hostname')"
+[ "$got_host" = "$new_hostname" ] ||
+	fail "host name did not persist across the slot switch (got '$got_host')"
+log "renamed host name survived the slot switch"
 ssh_run_key "$out/id2" 'systemctl poweroff' >/dev/null 2>&1 || true
 stop_qemu
 trap - EXIT
 
-printf 'PASS: SSH access, directory contract, key seeding, replacement, and slot persistence\n'
+printf 'PASS: SSH access, contract, key seeding/replacement, host name seeding/rename, slot persistence\n'

@@ -150,10 +150,11 @@ OBAKE_PROFILE=default image/os/buildroot/build.sh qdl -j"$(nproc)"
 `build.sh` composes the defconfig, applies the profile, verifies and seeds the
 pinned inputs, then builds. Both wrappers forward the build knobs
 (`MAKE_INSTALLER`, `MAKE_DISK`, `CONSOLE`, `INSTALLER_TARGET_DISK`,
-`RAUC_SIGNING_*`, `OBKA_SSH_AUTHORIZED_KEY`, `OBKA_PASSWORD`, and the
-verification `VERIFY*`/`BREAK` switches). `OBKA_SSH_AUTHORIZED_KEY` accepts a
-public key file at any host path and on either macOS or Linux; the build stages
-it so the container can read it.
+`RAUC_SIGNING_*`, `OBKA_SSH_AUTHORIZED_KEY`, `OBKA_PASSWORD`, `OBKA_HOSTNAME`,
+and the verification `VERIFY*`/`BREAK` switches). `OBKA_SSH_AUTHORIZED_KEY`
+accepts a public key file at any host path and on either macOS or Linux; the
+build stages it so the container can read it. `OBKA_HOSTNAME` seeds the host
+name (`obake` by default) and must be a valid RFC1123 name.
 
 Images are staged under
 `image/_out/os/<board>/<profile>/<version>-<shortsha>[-dirty]/` (containerized
@@ -299,13 +300,16 @@ sudo dd if="$(image/build/build.sh --print-dir qdl)/installer-local.img" \
 
    Enter the whole-device path and confirm with `y`.
 3. It applies the shared partition layout, writes both root slots and the
-   per-slot UKIs, seeds the persist partition, creates the user partition,
-   then prompts you to press Enter before powering off.
+   per-slot UKIs, seeds the persist partition and identity, creates the user
+   partition, then prompts you to press Enter before powering off. An
+   interactive install also prompts for the host name, defaulting to `obake`
+   or to the `OBKA_HOSTNAME` seed baked into the medium.
 
 Non-interactive builds skip the disk prompt and target `INSTALLER_TARGET_DISK`
 directly, wait `INSTALLER_POWEROFF_DELAY` seconds (default 10; use `0` in CI),
-then power off. Watch the console for `OBKA_INSTALL_DONE` and
-`OBKA_INSTALL_EXIT=0` to confirm success.
+then power off; the host name comes from the `OBKA_HOSTNAME` seed (default
+`obake`). Watch the console for `OBKA_INSTALL_DONE` and `OBKA_INSTALL_EXIT=0` to
+confirm success.
 
 Re-running the installer against an existing obake disk recreates the system
 partitions and keeps the user partition; `PRESERVE_USER=0` reformats the user
@@ -318,6 +322,20 @@ By default the `obake` login user has no password; access is by SSH key.
 Authorized keys are read from `~/.ssh/authorized_keys` on the user partition
 (`/home/obake/.ssh/authorized_keys`), which the `obake` user owns and can
 replace over SSH without sudo.
+
+### Rename the host
+
+The host name defaults to `obake` and can be set at install time (the
+`OBKA_HOSTNAME` seed for non-interactive installs, or the interactive prompt)
+or changed later as `obake` over SSH without sudo:
+
+```
+hostnamectl set-hostname studio-a
+```
+
+The name is written into the persist `/etc` overlay, so it survives reboots,
+slot switches, and updates. It is not carried in `/etc/hosts`; the local name
+resolves through the system resolver.
 
 Generate a key on your workstation and keep the private half where you
 generated it:

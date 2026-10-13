@@ -28,6 +28,12 @@ the **install** (`~/.ssh/authorized_keys` in the `obake` user's home on the user
 partition), so the installed host is reachable over SSH, the `obake` user can
 replace the key without sudo, and it survives updates and slot switches.
 
+`OBKA_HOSTNAME` seeds the installed host name (default `obake`); the build
+carries it in the installer medium and an interactive install prompts for it.
+Once installed, the `obake` user can rename the host without sudo with
+`hostnamectl set-hostname <name>`; the name lives in the persist `/etc` overlay
+and survives updates and slot switches.
+
 ## Quick path (helper)
 
 The helper builds the OS and installer with your key, installs to a virtual

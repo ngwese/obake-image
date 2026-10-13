@@ -21,13 +21,23 @@ the generated `partition-layout.env`). Verified headlessly by
 5. Install the per-slot unified kernel images to the ESP and reconcile one
    active EFI boot entry per slot (`A` and `B`) on that ESP, with the
    install's active slot first. A reinstall leaves a single pair.
-6. Seed the persist partition (machine-id, SSH host keys, hostname, network
-   configuration) and create the user partition.
+6. Seed the persist partition's `/etc` overlay (machine-id, SSH host keys,
+   hostname, network configuration) and create the user partition.
 7. Print `OBKA_INSTALL_DONE`, which the QEMU harness matches.
 
 Partition devices are resolved relative to the selected target disk, not by
 global labels, so an installer medium that itself carries `OBKA_*` partitions
 cannot be confused with the target.
+
+## Host name
+
+`OBKA_HOSTNAME` seeds the installed host name (default `obake`, validated as an
+RFC1123 name). The build carries it in the installer medium like the SSH key
+seed. An interactive install prompts on the console with the seed as the
+default; a non-interactive install uses the seed silently. The chosen name is
+written into the persist `/etc` overlay and survives updates and slot switches.
+The `obake` user can change it later without sudo with
+`hostnamectl set-hostname <name>`.
 
 ## SSH access
 
@@ -146,6 +156,7 @@ Overrides:
 | `PRESERVE_USER` | `1`                           | keep an existing user partition |
 | `LAYOUT`        | `<repo>/os/partition-layout.json` | layout metadata           |
 | `OBKA_SSH_AUTHORIZED_KEY` | unset               | public key seeded into the `obake` user's home |
+| `OBKA_HOSTNAME` | unset (`obake`)             | seed host name (RFC1123); interactive prompt default |
 
 Build-time installer knobs (in addition to `CONSOLE` / `INSTALLER_TARGET_DISK`):
 

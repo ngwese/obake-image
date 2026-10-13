@@ -49,6 +49,26 @@ abspath() {
 	fi
 }
 
+# RFC1123 host name check, matching what systemd's hostname_is_valid accepts:
+# dot-separated labels of letters, digits, and hyphens; at most 63 characters
+# per label and 64 in total; no empty label and no leading or trailing hyphen.
+is_valid_hostname() {
+	local h="$1" label
+	[ -n "$h" ] && [ "${#h}" -le 64 ] || return 1
+	case "$h" in
+	-* | *- | .* | *. | *..*) return 1 ;;
+	esac
+	local IFS=.
+	for label in $h; do
+		[ -n "$label" ] && [ "${#label}" -le 63 ] || return 1
+		case "$label" in
+		-* | *-) return 1 ;;
+		*[!A-Za-z0-9-]*) return 1 ;;
+		esac
+	done
+	return 0
+}
+
 usage() {
 	printf 'usage: %s [--print-dir] <board> [profile] --installer|--update [--] [make-args...]\n' \
 		"$0" >&2
@@ -130,6 +150,8 @@ Environment variables (build-time knobs):
                            non-readable path fails the build
     OBKA_PASSWORD          Build-time password for obake (enables SSH
                            password auth); empty/unset = key-only
+    OBKA_HOSTNAME          Seed host name for the installed host
+                           (default: obake); invalid names fail the build
     LOCAL_BUNDLE           Path written into /etc/obake/update.conf
     UPDATE_URL             URL written into /etc/obake/update.conf
     MOCK_HEALTH            Health-check mock for VERIFY_HEALTH images
@@ -302,6 +324,13 @@ if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ]; then
 	mkdir -p "$seeds_dir"
 	install -m 0644 "$key_src" "$seeds_dir/authorized_key.pub"
 	export OBKA_SSH_AUTHORIZED_KEY="$seeds_dir/authorized_key.pub"
+fi
+
+# Validate the hostname seed before the build consumes it.
+if [ -n "${OBKA_HOSTNAME:-}" ] && ! is_valid_hostname "$OBKA_HOSTNAME"; then
+	printf '[build] error: OBKA_HOSTNAME is not a valid host name: %s\n' \
+		"$OBKA_HOSTNAME" >&2
+	exit 1
 fi
 
 stage_images() { # stage_images <src-images-dir>

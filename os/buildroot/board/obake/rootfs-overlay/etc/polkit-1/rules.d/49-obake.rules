@@ -9,7 +9,9 @@ polkit.addRule(function(action, subject) {
         "org.freedesktop.systemd1.reload-daemon",
         "org.freedesktop.login1.power-off",
         "org.freedesktop.login1.reboot",
-        "org.freedesktop.login1.manage"
+        "org.freedesktop.login1.manage",
+        "org.freedesktop.hostname1.set-hostname",
+        "org.freedesktop.hostname1.set-static-hostname"
     ];
     if (allowed.indexOf(action.id) !== -1) {
         return polkit.Result.YES;

@@ -19,10 +19,51 @@ images_dir="${IMAGES_DIR:?IMAGES_DIR must point at the staged per-slot artifacts
 active_slot="${ACTIVE_SLOT:-a}"
 target_disk="${TARGET_DISK:-}"
 preserve_user="${PRESERVE_USER:-1}"
-hostname="${OBKA_HOSTNAME:-obake}"
+hostname=""
 
 log() { printf '[install] %s\n' "$*" >&2; }
 die() { printf '[install] error: %s\n' "$*" >&2; exit 1; }
+
+# RFC1123 host name check, matching what systemd's hostname_is_valid accepts.
+is_valid_hostname() {
+	local h="$1" label
+	[ -n "$h" ] && [ "${#h}" -le 64 ] || return 1
+	case "$h" in
+	-* | *- | .* | *. | *..*) return 1 ;;
+	esac
+	local IFS=.
+	for label in $h; do
+		[ -n "$label" ] && [ "${#label}" -le 63 ] || return 1
+		case "$label" in
+		-* | *-) return 1 ;;
+		*[!A-Za-z0-9-]*) return 1 ;;
+		esac
+	done
+	return 0
+}
+
+# Resolve the host name from the OBKA_HOSTNAME seed (default obake). An
+# interactive install (no fixed target disk) prompts on the console with the
+# seed as the default; a non-interactive install uses the seed directly. Only a
+# valid name is accepted: interactive re-prompts, non-interactive fails.
+resolve_hostname() {
+	local seed="${OBKA_HOSTNAME:-obake}" answer
+	if [ -n "$target_disk" ]; then
+		is_valid_hostname "$seed" || die "invalid OBKA_HOSTNAME: $seed"
+		printf '%s' "$seed"
+		return 0
+	fi
+	while :; do
+		printf 'host name [%s]: \n' "$seed" >&2
+		read -r answer
+		[ -n "$answer" ] || answer="$seed"
+		if is_valid_hostname "$answer"; then
+			printf '%s' "$answer"
+			return 0
+		fi
+		printf 'invalid host name: %s\n' "$answer" >&2
+	done
+}
 
 # The build emits partition-layout.env next to partition-layout.json so the
 # installer needs no Python on the target. Fall back to parsing the JSON with
@@ -169,10 +210,16 @@ write_slot() {
 }
 
 seed_identity() {
-  local persist="$1"
-  printf '%s\n' "$hostname" >"$persist/etc/hostname"
-  install -d "$persist/etc/systemd/network"
-  cat >"$persist/etc/systemd/network/20-obake-wired.network" <<'EOF'
+  local persist="$1" upper="$1/etc-overlay/upper" stage
+  install -d "$upper"
+  # Build the identity in a staging root (so systemd-machine-id-setup and
+  # ssh-keygen see a normal layout), then copy it into the /etc overlay upper
+  # the installed host actually reads. Writing to $persist/etc would be dead,
+  # since the runtime overlays /etc from $upper.
+  stage="$(mktemp -d)"
+  install -d "$stage/etc/systemd/network" "$stage/etc/ssh"
+  printf '%s\n' "$hostname" >"$stage/etc/hostname"
+  cat >"$stage/etc/systemd/network/20-obake-wired.network" <<'EOF'
 [Match]
 Name=en* eth* end*
 
@@ -182,15 +229,12 @@ DHCP=yes
 [Link]
 RequiredForOnline=no
 EOF
-  if [ ! -s "$persist/etc/machine-id" ]; then
-    rm -f "$persist/etc/machine-id"
-    systemd-machine-id-setup --root="$persist" >/dev/null
-  fi
-  if [ ! -s "$persist/etc/ssh/ssh_host_ed25519_key" ]; then
-    install -d "$persist/etc/ssh"
-    ssh-keygen -q -t ed25519 -N '' -f "$persist/etc/ssh/ssh_host_ed25519_key"
-    ssh-keygen -q -t rsa -b 3072 -N '' -f "$persist/etc/ssh/ssh_host_rsa_key"
-  fi
+  systemd-machine-id-setup --root="$stage" >/dev/null
+  ssh-keygen -q -t ed25519 -N '' -f "$stage/etc/ssh/ssh_host_ed25519_key"
+  ssh-keygen -q -t rsa -b 3072 -N '' -f "$stage/etc/ssh/ssh_host_rsa_key"
+  cp -a "$stage/etc/." "$upper/"
+  chown -R 0:0 "$upper"
+  rm -rf "$stage"
 }
 
 install_boot() {
@@ -237,7 +281,7 @@ seed_persist() {
   local persist="/run/obka-persist"
   mkdir -p "$persist"
   mount "$(rolepart persist)" "$persist"
-  mkdir -p "$persist/etc" "$persist/var" "$persist/etc-overlay/upper" "$persist/etc-overlay/work"
+  mkdir -p "$persist/var" "$persist/etc-overlay/upper" "$persist/etc-overlay/work"
   seed_identity "$persist"
   umount "$persist"
 }
@@ -272,6 +316,7 @@ seed_user() {
 }
 
 disk="$(select_disk)"
+hostname="$(resolve_hostname)"
 keep_user=0
 if [ "$preserve_user" != 0 ] && has_user_partition; then
   keep_user=1

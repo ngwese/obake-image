@@ -151,6 +151,18 @@ if [ -n "${OBKA_SSH_AUTHORIZED_KEY:-}" ] && [ -f "$OBKA_SSH_AUTHORIZED_KEY" ]; t
     "$seed_stage/obake/.ssh/authorized_keys"
 fi
 
+persist_stage=""
+if [ -n "${OBKA_HOSTNAME:-}" ]; then
+  # The persist partition is mounted at /persist and its /etc overlay upper
+  # lives at etc-overlay/upper, so bake the host name there for the disk to
+  # boot with it. Only the host name is baked; machine-id and SSH host keys
+  # stay boot-time generated so a generic image does not share an identity.
+  persist_stage="$work/persist-seed"
+  rm -rf "$persist_stage"
+  install -d "$persist_stage/etc-overlay/upper" "$persist_stage/etc-overlay/work"
+  printf '%s\n' "$OBKA_HOSTNAME" >"$persist_stage/etc-overlay/upper/hostname"
+fi
+
 for role in persist user; do
   bytes=$(( (part_end["$role"] - part_start["$role"] + 1) * sector ))
   rm -f "$tmp"
@@ -163,7 +175,15 @@ for p in data["partitions"]:
         print(p["label"])
 PY
 )"
-  if [ "$role" = user ] && [ -n "$seed_stage" ]; then
+  if [ "$role" = persist ] && [ -n "$persist_stage" ]; then
+    OBKA_FS_IMAGE="$tmp" OBKA_FS_LABEL="$label" OBKA_FS_STAGE="$persist_stage" \
+      fakeroot bash -c '
+        set -e
+        chown -R 0:0 "$OBKA_FS_STAGE"
+        mke2fs -q -t ext4 -L "$OBKA_FS_LABEL" -d "$OBKA_FS_STAGE" \
+          -E root_owner=0:0 "$OBKA_FS_IMAGE"
+      '
+  elif [ "$role" = user ] && [ -n "$seed_stage" ]; then
     OBKA_FS_IMAGE="$tmp" OBKA_FS_LABEL="$label" OBKA_FS_STAGE="$seed_stage" \
       OBKA_FS_UID="$obake_uid" OBKA_FS_GID="$obake_gid" \
       fakeroot bash -c '

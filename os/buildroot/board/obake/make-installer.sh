@@ -114,6 +114,7 @@ EOF
 	printf 'Environment=IMAGES_DIR=/opt/obake/images\n'
 	printf 'Environment=PRESERVE_USER=%s\n' "$preserve_user"
 	[ -n "$ssh_key" ] && printf 'Environment=OBKA_SSH_AUTHORIZED_KEY=/opt/obake/authorized_key.pub\n'
+	[ -n "${OBKA_HOSTNAME:-}" ] && printf 'Environment=OBKA_HOSTNAME=%s\n' "$OBKA_HOSTNAME"
 	printf 'Environment=OBKA_USER_UID=%s\n' "$obake_uid"
 	printf 'Environment=OBKA_USER_GID=%s\n' "$obake_gid"
 	printf 'Environment=LAYOUT_ENV=/opt/os/partition-layout.env\n'

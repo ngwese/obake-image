@@ -72,7 +72,9 @@ uses this directory as its default build sandbox.
 holds the `/etc` overlay, the persisted `/var` subset, the RAUC slot state
 (`/persist/rauc`), update snapshots and health state
 (`/persist/obake`), and the machine-specific seed written at install time
-(machine-id, SSH host keys, hostname, network configuration).
+(machine-id, SSH host keys, hostname, network configuration). The identity seed
+is written into the `/etc` overlay upper (`/persist/etc-overlay/upper`), so the
+installed host's `/etc` reflects it.
 
 ### user partition
 
@@ -113,6 +115,13 @@ behaviour:
 - the user can modify files under `/home/obake`;
 - a write to `/etc` or to the read-only root fails.
 
+`obake` can also rename the host over SSH without sudo
+(`hostnamectl set-hostname <name>`); the name is written into the persist
+`/etc` overlay and survives boots, slot switches, and updates. The host name is
+not carried in `/etc/hosts`; the local name resolves through the system
+resolver (`systemd-resolved` with the `myhostname` NSS module), so a rename
+needs no `/etc/hosts` edit.
+
 `obake-linger.service` starts the `obake` user manager at boot (session bus for
 JACK D-Bus). Because systemd is built without PAM, login shells get
 `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` from
@@ -133,6 +142,9 @@ the read-only root or the directory contract:
   unit management and power control over SSH without interactive
   authentication: `systemctl start|stop|restart|enable`, `systemctl poweroff`,
   and `systemctl reboot` work as `obake` with no password.
+- The same polkit rule grants the hostname actions, so
+  `hostnamectl set-hostname <name>` renames the host over SSH without a
+  password.
 - `kernel.dmesg_restrict = 0` (`/etc/sysctl.d/90-obake.conf`) allows reading the
   kernel ring buffer with `dmesg`.
 - Membership in the `systemd-journal` group (declared in
