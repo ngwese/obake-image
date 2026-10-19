@@ -68,12 +68,30 @@ embed_bundle() { # <src> <dst-name>
 	install -m 0644 "$1" "$target_dir/opt/obake/$2"
 }
 
+# Map Buildroot target arch to fixture name. Filename uses arm64 (Singularity's
+# label); Buildroot/post-build use aarch64.
 embed_verify_sif() {
-	local sif="$fixtures/verify.sif"
+	local arch="${VERIFY_SIF_ARCH:-${OBKA_ARCH:-}}" sif
+	if [ -z "$arch" ] && [ -n "${BR2_CONFIG:-}" ]; then
+		if grep -q '^BR2_aarch64=y' "$BR2_CONFIG"; then
+			arch=aarch64
+		elif grep -q '^BR2_x86_64=y' "$BR2_CONFIG"; then
+			arch=x86_64
+		fi
+	fi
+	case "$arch" in
+	x86_64) sif="$fixtures/verify-x86_64.sif" ;;
+	aarch64|arm64) sif="$fixtures/verify-arm64.sif" ;;
+	*)
+		log "error: cannot select verify SIF (arch=${arch:-unknown}; set BR2_CONFIG or VERIFY_SIF_ARCH)"
+		exit 1
+		;;
+	esac
 	[ -f "$sif" ] || {
 		log "error: missing $sif (see image/verification/fixtures/README.md)"
 		exit 1
 	}
+	log "embedding $(basename "$sif") as /opt/obake/verify.sif"
 	install -d "$target_dir/opt/obake"
 	install -m 0644 "$sif" "$target_dir/opt/obake/verify.sif"
 }

@@ -4,8 +4,9 @@ _*/
 # Vendored download locks
 /os/buildroot/vendor/dl/**/.lock
 
-# singularity build artifacts
+# singularity build artifacts (fixtures are tracked via git-lfs)
 *.sif
+!verification/fixtures/*.sif
 
 # sbcl build artifacts
 *.bin
