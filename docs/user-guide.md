@@ -404,7 +404,9 @@ with sudo instead. Singularity shapes run as `obake` via the setuid helper with
 kernel SquashFS mounts (low-overhead SIF rootfs). On-device
 `singularity build --fakeroot` / `exec --fakeroot` is supported (`/etc/subuid`
 and `/etc/subgid` are seeded for `obake`); current shape `.def` files still use
-`Bootstrap: docker` and may need network pull beyond fakeroot. See
+`Bootstrap: docker` and may need network pull beyond fakeroot. JACK shapes that
+talk to the host PipeWire graph follow
+[`shapes/docs/pipewire-jack.md`](../../shapes/docs/pipewire-jack.md). See
 `host-config.md`.
 
 ## 7. Filesystem layout: read-only root vs writable contract
