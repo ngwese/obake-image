@@ -6,10 +6,14 @@ Factory config is on the read-only image:
 
 - `/usr/share/pipewire/pipewire.conf.d/10-obake-clock.conf` — 48000 Hz,
   quantum 128
+- `/usr/share/pipewire/pipewire.conf.d/10-obake-rt.conf` and
+  `/usr/share/wireplumber/wireplumber.conf.d/10-obake-rt.conf` — disable
+  RTKit and the realtime portal; realtime comes from unit rlimits
 - `/usr/share/wireplumber/wireplumber.conf.d/10-obake-alsa.conf` — ALSA
   period 128, three periods, for card ids ADAT, II, and USBPre2
-- `/usr/lib/systemd/user/pipewire.service.d/10-obake-rt.conf` — realtime
-  limits on the user service
+- `/usr/lib/systemd/user/pipewire.service.d/10-obake-rt.conf` and
+  `/usr/lib/systemd/user/wireplumber.service.d/10-obake-rt.conf` —
+  realtime limits on both user services
 
 `obake` cannot write `/etc`. Overrides that survive an update go under
 `/home/obake/.config/pipewire/` and `/home/obake/.config/wireplumber/`.

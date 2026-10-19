@@ -26,6 +26,9 @@ define OBAKE_HOST_CONFIG_INSTALL_TARGET_CMDS
 	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/user/pipewire.service.d
 	$(INSTALL) -m 0644 $(@D)/systemd/pipewire.service.d/*.conf \
 		$(TARGET_DIR)/usr/lib/systemd/user/pipewire.service.d/
+	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/user/wireplumber.service.d
+	$(INSTALL) -m 0644 $(@D)/systemd/wireplumber.service.d/*.conf \
+		$(TARGET_DIR)/usr/lib/systemd/user/wireplumber.service.d/
 	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/user/default.target.wants
 	ln -sf ../pipewire.service \
 		$(TARGET_DIR)/usr/lib/systemd/user/default.target.wants/pipewire.service

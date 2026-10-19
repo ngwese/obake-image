@@ -97,9 +97,11 @@ PipeWire a client of `jackd` is disabled, and so is PulseAudio. There is no
 `jackd` and no `jackdbus`. `obake-wireplumber` (`package/obake-wireplumber/`)
 builds WirePlumber **0.5.18** against the system Lua interpreter, with
 introspection disabled, so the host still has no Python runtime.
-`rtkit` is not included: Buildroot has no `rtkit` package, and realtime
-scheduling and locked memory come from the PipeWire user-service limits and
-the PREEMPT_RT kernel.
+`rtkit` is not included: Buildroot has no `rtkit` package. Factory
+`module.rt.args` drop-ins disable RTKit and the realtime portal for PipeWire
+and WirePlumber. Realtime scheduling and locked memory come from the
+`pipewire.service` and `wireplumber.service` user-service limits and the
+PREEMPT_RT kernel.
 
 The overlay provides a per-user session bus for `obake`: the standard systemd
 user `dbus.socket`/`dbus.service` units (Buildroot does not package them),

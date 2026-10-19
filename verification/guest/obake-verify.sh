@@ -351,6 +351,8 @@ check_pipewire_runtime() {
 	[ -S "${runtime}/pipewire-0" ] || return 1
 	rtprio=$(systemctl --user show pipewire.service -p LimitRTPRIO --value)
 	[ "$rtprio" = "95" ] || return 1
+	rtprio=$(systemctl --user show wireplumber.service -p LimitRTPRIO --value)
+	[ "$rtprio" = "95" ] || return 1
 	if command -v jackd >/dev/null 2>&1; then
 		return 1
 	fi
