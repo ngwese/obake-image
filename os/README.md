@@ -73,11 +73,13 @@ keys there; an empty directory is the default. RAUC's release keyring at
 The packages the shapes build and run on form a separate **runtime layer**, a
 `BR2_EXTERNAL` meta-package `obake-runtime` (`package/obake-runtime/Config.in`)
 whose `select`s name the layer once so a defconfig reuses it. It currently
-selects `obake-jack2`, `alsa-utils`, `usb-modeswitch`, `nftables`, `avahi`
+selects `obake-pipewire` (PipeWire 1.6.9), `obake-wireplumber` (WirePlumber
+0.5.18), `alsa-utils`, `usb-modeswitch`, `nftables`, `avahi`
 (+ daemon), `nss-mdns`, `libcurl` (+ the `curl` binary), `iproute2`, `sudo`,
-`git`, and `obake-container`. Enable it with `BR2_PACKAGE_OBAKE_RUNTIME=y`;
-`obake-jack2` additionally needs `BR2_TOOLCHAIN_BUILDROOT_CXX=y` for target
-C++/libstdc++.
+`git`, and `obake-container`. Enable it with `BR2_PACKAGE_OBAKE_RUNTIME=y`.
+The in-tree Buildroot `pipewire` and `wireplumber` packages stay unselected
+so a Buildroot bump cannot change the audio versions. `BR2_TOOLCHAIN_BUILDROOT_CXX`
+remains in the base defconfig; the audio recipes do not need it.
 
 The container runtime is its own meta-package, `obake-container`
 (`package/obake-container/`), which selects `package/singularity`
@@ -89,27 +91,27 @@ cryptsetup, FUSE3, seccomp, squashfs tools) apart from the audio/network
 runtime. Future changes add further meta-packages (developer tooling,
 audio-over-IP) the same way.
 
-`obake-jack2` (`package/obake-jack2/`) is an external recipe that builds jack2
-with `--alsa --classic --dbus`, installing both `jackd` and `jackdbus`. It
-removes the Python `jack_control` helper and selects no Python interpreter or
-bindings, so the host carries no Python runtime; drive `jackdbus` over its
-D-Bus interface. Use it instead of the in-tree `BR2_PACKAGE_JACK2_DBUS`, which
-selects Python solely for `jack_control`.
-
-Because `jackdbus` is D-Bus activated, the overlay also provides a per-user
-session bus for `obake`: the standard systemd user `dbus.socket`/`dbus.service`
-units (Buildroot does not package them), enabled on the user manager, with the
-manager started at boot by `obake-linger.service`. Login shells pick up
-`XDG_RUNTIME_DIR` / `DBUS_SESSION_BUS_ADDRESS` from
-`/etc/profile.d/obake-user-bus.sh` (no PAM), so `systemctl --user` works over
-SSH. `org.jackaudio.service` is then activatable on
-`unix:path=/run/user/<uid>/bus`, which the future `obake-launcher` will use to
-activate and configure `jackd` over D-Bus.
-
+`obake-pipewire` (`package/obake-pipewire/`) builds PipeWire **1.6.9** with
+the daemon, the ALSA plugin, and `pipewire-jack`. The plugin that would make
+PipeWire a client of `jackd` is disabled, and so is PulseAudio. There is no
+`jackd` and no `jackdbus`. `obake-wireplumber` (`package/obake-wireplumber/`)
+builds WirePlumber **0.5.18** against the system Lua interpreter, with
+introspection disabled, so the host still has no Python runtime.
 `rtkit` is not included: Buildroot has no `rtkit` package, and realtime
-scheduling and locked memory are provided by the `limits.d` grants and the
-PREEMPT_RT kernel. Further meta-packages (developer tooling, audio-over-IP) are
-left to later changes.
+scheduling and locked memory come from the PipeWire user-service limits and
+the PREEMPT_RT kernel.
+
+The overlay provides a per-user session bus for `obake`: the standard systemd
+user `dbus.socket`/`dbus.service` units (Buildroot does not package them),
+enabled on the user manager, with the manager started at boot by
+`obake-linger.service`. That starts `pipewire.service` and
+`wireplumber.service` for `obake`. Login shells pick up `XDG_RUNTIME_DIR` /
+`DBUS_SESSION_BUS_ADDRESS` from `/etc/profile.d/obake-user-bus.sh` (no PAM),
+so `systemctl --user` works over SSH. The daemon socket is
+`/run/user/<uid>/pipewire-0`.
+
+Further meta-packages (developer tooling, audio-over-IP) are left to later
+changes.
 
 Two Buildroot options are easy to miss:
 

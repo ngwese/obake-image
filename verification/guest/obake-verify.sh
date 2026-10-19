@@ -327,6 +327,46 @@ check_update_rollback() {
 	rauc status 2>/dev/null | grep -q '^Activated: rootfs.1' || return 1
 }
 
+# PipeWire and WirePlumber must be up for obake with no sound card attached.
+# The verify unit is a system service with User=obake, so the user-bus
+# variables are not in the environment. Linger starts the user manager;
+# the services can still be activating when this oneshot begins.
+check_pipewire_runtime() {
+	uid=$(id -u)
+	runtime="/run/user/${uid}"
+	export XDG_RUNTIME_DIR="$runtime"
+	export DBUS_SESSION_BUS_ADDRESS="unix:path=${runtime}/bus"
+	i=0
+	while [ "$i" -lt 15 ]; do
+		if systemctl --user is-active --quiet pipewire.service \
+			&& systemctl --user is-active --quiet wireplumber.service \
+			&& [ -S "${runtime}/pipewire-0" ]; then
+			break
+		fi
+		i=$((i + 1))
+		sleep 1
+	done
+	systemctl --user is-active --quiet pipewire.service || return 1
+	systemctl --user is-active --quiet wireplumber.service || return 1
+	[ -S "${runtime}/pipewire-0" ] || return 1
+	rtprio=$(systemctl --user show pipewire.service -p LimitRTPRIO --value)
+	[ "$rtprio" = "95" ] || return 1
+	if command -v jackd >/dev/null 2>&1; then
+		return 1
+	fi
+	if [ -e /usr/lib/systemd/user/pipewire-pulse.service ] \
+		|| [ -e /usr/lib/systemd/user/pipewire-pulse.socket ] \
+		|| [ -e /usr/lib/systemd/system/pipewire-pulse.service ] \
+		|| [ -e /usr/lib/systemd/system/pipewire-pulse.socket ]; then
+		return 1
+	fi
+	rule=/etc/udev/rules.d/50-mixpre6.rules
+	[ -f "$rule" ] || return 1
+	grep -q 'usb_modeswitch' "$rule" || return 1
+	grep -q '0926' "$rule" || return 1
+	grep -q '0206' "$rule" || return 1
+}
+
 # A signed bundle must install to the inactive slot (skipped when no bundle was
 # embedded in the verification image).
 check_rauc_install() {
@@ -368,6 +408,7 @@ run singularity-fakeroot check_singularity_fakeroot
 run tmp-singularity-build check_tmp_singularity_build
 run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
+run pipewire-runtime check_pipewire_runtime
 run dns check_dns
 run avahi check_avahi
 run git check_git

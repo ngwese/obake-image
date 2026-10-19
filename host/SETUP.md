@@ -1,6 +1,22 @@
-sudo apt install usb-modeswitch
-sudo cp jack@.service /usr/lib/systemd/user/
-sudo vi /etc/security/limits.conf (for rtprio and ulimited memlock for @audio)
-sudo usermod -a -G uucp greg
-sudo usermod -a -G dialout greg
-sudo usermod -a -G input greg (questionable due to security)
+The image starts PipeWire and WirePlumber as systemd user services for
+`obake`. `obake-linger.service` starts that user manager at boot, so the
+graph is up without a login.
+
+Factory config is on the read-only image:
+
+- `/usr/share/pipewire/pipewire.conf.d/10-obake-clock.conf` — 48000 Hz,
+  quantum 128
+- `/usr/share/wireplumber/wireplumber.conf.d/10-obake-alsa.conf` — ALSA
+  period 128, three periods, for card ids ADAT, II, and USBPre2
+- `/usr/lib/systemd/user/pipewire.service.d/10-obake-rt.conf` — realtime
+  limits on the user service
+
+`obake` cannot write `/etc`. Overrides that survive an update go under
+`/home/obake/.config/pipewire/` and `/home/obake/.config/wireplumber/`.
+
+The daemon socket is `/run/user/<uid>/pipewire-0`. A Singularity process
+running as `obake` reaches it by bind-mounting `/run/user/<uid>`.
+
+udev still runs `usb_modeswitch` when a MixPre in UAC1 mode is attached.
+WirePlumber opens the card after it re-enumerates. No udev rule starts
+an audio server.

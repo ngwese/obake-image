@@ -23,7 +23,7 @@ The host OS subsystem lives under `image/` in the top-level obake repository
 | `os/`           | Buildroot image build (pinned base, boards, runtime)      |
 | `build/`        | Containerized build entry point and build environment     |
 | `installer/`    | Headless installer for the image                          |
-| `host/`         | Host-level udev rules and JACK configuration for the target |
+| `host/`         | Host-level udev rules and PipeWire 1.6.9 / WirePlumber 0.5.18 configuration |
 | `verification/` | QEMU verification, reproducibility, and update-server tooling |
 | `docs/`         | This guide and the subsystem references                   |
 
@@ -87,8 +87,9 @@ changes. The base defconfig sets `BR2_REPRODUCIBLE`, so a rebuild from
 unchanged pins reproduces the rootfs archive.
 
 The userland packages are grouped into `BR2_EXTERNAL` meta-packages:
-`obake-runtime` selects the audio and network runtime (`obake-jack2`,
-`alsa-utils`, `avahi`, `nftables`, `libcurl`, `git`, and more), and
+`obake-runtime` selects the audio and network runtime (`obake-pipewire`
+1.6.9, `obake-wireplumber` 0.5.18, `alsa-utils`, `avahi`, `nftables`,
+`libcurl`, `git`, and more), and
 `obake-container` selects the Singularity CE runtime built from source. Future
 layers are added the same way. The realtime kernel is built from the pinned
 source with a shared realtime fragment (`PREEMPT_RT`, 1000 Hz tick) and a

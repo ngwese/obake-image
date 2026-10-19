@@ -22,9 +22,11 @@ pins="$brroot/pins.json"
 [ -f "$pins" ] || { printf '[pinned-inputs] error: %s not found\n' "$pins" >&2; exit 1; }
 
 sing_ver="$(sed -n 's/^SINGULARITY_VERSION = //p' "$brroot/package/singularity/singularity.mk")"
-jack2_ver="$(sed -n 's/^OBAKE_JACK2_VERSION = //p' "$brroot/package/obake-jack2/obake-jack2.mk")"
+pipewire_ver="$(sed -n 's/^OBAKE_PIPEWIRE_VERSION = //p' "$brroot/package/obake-pipewire/obake-pipewire.mk")"
+wireplumber_ver="$(sed -n 's/^OBAKE_WIREPLUMBER_VERSION = //p' "$brroot/package/obake-wireplumber/obake-wireplumber.mk")"
 [ -n "$sing_ver" ] || { printf '[pinned-inputs] error: no Singularity version\n' >&2; exit 1; }
-[ -n "$jack2_ver" ] || { printf '[pinned-inputs] error: no jack2 version\n' >&2; exit 1; }
+[ -n "$pipewire_ver" ] || { printf '[pinned-inputs] error: no pipewire version\n' >&2; exit 1; }
+[ -n "$wireplumber_ver" ] || { printf '[pinned-inputs] error: no wireplumber version\n' >&2; exit 1; }
 
 kernel_built=""
 if [ -n "$target" ] && [ -f "$target/etc/obake/kernel" ]; then
@@ -45,10 +47,12 @@ fi
 
 mkdir -p "$out"
 python3 - "$pins" "$out/pinned-inputs.json" "$board" "$arch" \
-	"$sing_ver" "$jack2_ver" "$kernel_built" "$image_version" <<'PY'
+	"$sing_ver" "$pipewire_ver" "$wireplumber_ver" "$kernel_built" \
+	"$image_version" <<'PY'
 import json, sys
 
-pins_path, out_path, board, arch, sing, jack2, kernel_built, image_version = sys.argv[1:9]
+(pins_path, out_path, board, arch, sing, pipewire, wireplumber,
+ kernel_built, image_version) = sys.argv[1:10]
 pins = json.load(open(pins_path))
 
 doc = {
@@ -64,8 +68,9 @@ doc = {
         "sha256": pins["kernel"]["sha256"],
     },
     "runtime": {
+        "pipewire": pipewire,
         "singularity": sing,
-        "jack2": jack2,
+        "wireplumber": wireplumber,
     },
     "efi_stub": {
         "systemd_version": pins["efi_stub"]["systemd_version"],

@@ -1,0 +1,20 @@
+config BR2_PACKAGE_OBAKE_WIREPLUMBER
+	bool "obake wireplumber"
+	depends on BR2_PACKAGE_OBAKE_PIPEWIRE
+	depends on BR2_USE_WCHAR # libglib2
+	depends on BR2_TOOLCHAIN_HAS_THREADS # libglib2
+	depends on BR2_USE_MMU # libglib2
+	select BR2_PACKAGE_LIBGLIB2
+	select BR2_PACKAGE_LUA
+	help
+	  WirePlumber 0.5.18, the session manager for the obake PipeWire
+	  graph. Built against the system Lua interpreter. Introspection
+	  is disabled, so this package selects neither Python nor
+	  gobject-introspection.
+
+	  https://pipewire.pages.freedesktop.org/wireplumber/
+
+comment "obake wireplumber needs obake-pipewire and a toolchain w/ wchar, threads"
+	depends on BR2_USE_MMU
+	depends on !BR2_PACKAGE_OBAKE_PIPEWIRE || !BR2_USE_WCHAR || \
+		!BR2_TOOLCHAIN_HAS_THREADS

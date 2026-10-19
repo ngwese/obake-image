@@ -17,11 +17,20 @@ OBAKE_HOST_CONFIG_DEPENDENCIES = host-systemd
 define OBAKE_HOST_CONFIG_INSTALL_TARGET_CMDS
 	$(INSTALL) -d $(TARGET_DIR)/etc/udev/rules.d
 	$(INSTALL) -m 0644 $(@D)/udev/*.rules $(TARGET_DIR)/etc/udev/rules.d/
-	$(INSTALL) -d $(TARGET_DIR)/etc/jack
-	$(INSTALL) -m 0644 $(@D)/jack/*.conf $(TARGET_DIR)/etc/jack/
-	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/user
-	$(INSTALL) -m 0644 $(@D)/jack/jack@.service \
-		$(TARGET_DIR)/usr/lib/systemd/user/jack@.service
+	$(INSTALL) -d $(TARGET_DIR)/usr/share/pipewire/pipewire.conf.d
+	$(INSTALL) -m 0644 $(@D)/pipewire/pipewire.conf.d/*.conf \
+		$(TARGET_DIR)/usr/share/pipewire/pipewire.conf.d/
+	$(INSTALL) -d $(TARGET_DIR)/usr/share/wireplumber/wireplumber.conf.d
+	$(INSTALL) -m 0644 $(@D)/wireplumber/wireplumber.conf.d/*.conf \
+		$(TARGET_DIR)/usr/share/wireplumber/wireplumber.conf.d/
+	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/user/pipewire.service.d
+	$(INSTALL) -m 0644 $(@D)/systemd/pipewire.service.d/*.conf \
+		$(TARGET_DIR)/usr/lib/systemd/user/pipewire.service.d/
+	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/user/default.target.wants
+	ln -sf ../pipewire.service \
+		$(TARGET_DIR)/usr/lib/systemd/user/default.target.wants/pipewire.service
+	ln -sf ../wireplumber.service \
+		$(TARGET_DIR)/usr/lib/systemd/user/default.target.wants/wireplumber.service
 endef
 
 $(eval $(generic-package))

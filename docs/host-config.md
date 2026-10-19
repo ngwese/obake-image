@@ -38,8 +38,11 @@ The initramfs (`obake-etc-overlay` hook) mounts the persist partition and
 overlays the slot's read-only `/etc` with it before `switch_root`, using
 `lowerdir=<slot>/etc` and upper/work directories under
 `/persist/etc-overlay`. Changes under `/etc` therefore survive reboots and slot
-switches and cover machine-specific configuration such as the JACK profiles
-under `/etc/jack` and network configuration. A marker file
+switches and cover machine-specific configuration such as network
+configuration. PipeWire factory config is on the read-only image; `obake`
+overrides it under `/home/obake/.config/pipewire/` and
+`/home/obake/.config/wireplumber/`, which live on the user partition. A
+marker file
 `/etc/obake/etc-overlay` enables the hook.
 
 ### `/var`
@@ -122,8 +125,10 @@ not carried in `/etc/hosts`; the local name resolves through the system
 resolver (`systemd-resolved` with the `myhostname` NSS module), so a rename
 needs no `/etc/hosts` edit.
 
-`obake-linger.service` starts the `obake` user manager at boot (session bus for
-JACK D-Bus). Because systemd is built without PAM, login shells get
+`obake-linger.service` starts the `obake` user manager at boot so the
+PipeWire and WirePlumber user services come up without a login. The daemon
+socket is `/run/user/<uid>/pipewire-0`. Because systemd is built without
+PAM, login shells get
 `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` from
 `/etc/profile.d/obake-user-bus.sh` when `/run/user/<uid>` exists, so
 `systemctl --user` works in an interactive SSH session without manually

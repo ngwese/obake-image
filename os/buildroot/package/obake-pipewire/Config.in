@@ -1,0 +1,26 @@
+config BR2_PACKAGE_OBAKE_PIPEWIRE
+	bool "obake pipewire"
+	depends on BR2_TOOLCHAIN_HAS_THREADS # alsa-lib, dbus
+	depends on BR2_USE_MMU # fork()
+	depends on !BR2_STATIC_LIBS
+	depends on BR2_TOOLCHAIN_HAS_SYNC_4
+	depends on BR2_USE_WCHAR # dbus
+	depends on BR2_PACKAGE_SYSTEMD
+	select BR2_PACKAGE_ALSA_LIB
+	select BR2_PACKAGE_ALSA_LIB_HWDEP
+	select BR2_PACKAGE_ALSA_LIB_SEQ
+	select BR2_PACKAGE_ALSA_LIB_UCM
+	select BR2_PACKAGE_DBUS
+	help
+	  PipeWire 1.6.9 for the obake host: the daemon, the ALSA plugin,
+	  and pipewire-jack. The plugin that makes PipeWire a client of
+	  jackd, and PulseAudio support, are disabled. No Python runtime
+	  is selected.
+
+	  https://pipewire.org/
+
+comment "obake pipewire needs systemd and a toolchain w/ wchar, threads, dynamic library"
+	depends on BR2_USE_MMU
+	depends on !BR2_PACKAGE_SYSTEMD || !BR2_USE_WCHAR || \
+		!BR2_TOOLCHAIN_HAS_THREADS || BR2_STATIC_LIBS || \
+		!BR2_TOOLCHAIN_HAS_SYNC_4

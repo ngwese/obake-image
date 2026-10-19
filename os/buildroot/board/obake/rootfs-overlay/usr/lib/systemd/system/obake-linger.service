@@ -1,5 +1,5 @@
 [Unit]
-Description=Start the obake user manager (session bus for JACK D-Bus)
+Description=Start the obake user manager (PipeWire session)
 After=systemd-logind.service
 Requires=systemd-logind.service
 

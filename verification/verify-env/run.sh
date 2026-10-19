@@ -73,6 +73,12 @@ fi
 if [ -x /usr/bin/docker ]; then
 	run_args+=(-v /usr/bin/docker:/usr/local/bin/docker:ro)
 fi
+# The host docker binary looks for Buildx next to its install prefix. The
+# verify image does not ship that plugin, so mount the host directory when
+# it exists. Nested image/build/build.sh fails closed without it.
+if [ -d /usr/libexec/docker/cli-plugins ]; then
+	run_args+=(-v /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro)
+fi
 
 # Forward the harness and build knobs; unset variables are skipped.
 for v in \
