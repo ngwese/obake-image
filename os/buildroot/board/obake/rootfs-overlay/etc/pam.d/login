@@ -1,0 +1,9 @@
+#%PAM-1.0
+# Console login: same limits and systemd session setup as sshd.
+auth       required     pam_unix.so nullok
+account    required     pam_unix.so
+password   required     pam_unix.so nullok
+session    required     pam_limits.so
+session    required     pam_env.so
+session    required     pam_unix.so
+session    optional     pam_systemd.so

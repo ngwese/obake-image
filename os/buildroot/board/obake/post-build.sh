@@ -244,6 +244,26 @@ if [ -f "$sshd_config" ] &&
 	sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' "$sshd_config"
 fi
 
+# Retired no-PAM workarounds: Buildroot overlays do not delete files that were
+# removed from the overlay source, so wipe them from a dirty target explicitly.
+rm -f "${target_dir}/etc/profile.d/obake-user-bus.sh"
+rm -f "${target_dir}/usr/lib/systemd/system/user@.service.d/20-obake-xdg-runtime.conf"
+if [ -d "${target_dir}/usr/lib/systemd/system/user@.service.d" ] &&
+	[ -z "$(find "${target_dir}/usr/lib/systemd/system/user@.service.d" \
+		-mindepth 1 -print -quit)" ]; then
+	rmdir "${target_dir}/usr/lib/systemd/system/user@.service.d"
+fi
+
+# With linux-pam selected, OpenSSH should set UsePAM yes; enforce it so an
+# incremental rebuild cannot leave UsePAM no after a PAM-enabled openssh.
+if [ -f "$sshd_config" ]; then
+	if grep -qE '^#?UsePAM ' "$sshd_config"; then
+		sed -i 's/^#\?UsePAM .*/UsePAM yes/' "$sshd_config"
+	else
+		printf 'UsePAM yes\n' >>"$sshd_config"
+	fi
+fi
+
 # Root ownership for overlay-copied config is applied in post-fakeroot.sh so a
 # non-root build can still record uid 0 in the assembled root filesystem.
 

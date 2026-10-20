@@ -50,6 +50,10 @@ bash "$here/../ensure-user-owned.sh" \
 run_args=(--rm
 	--user "$uid:$gid"
 	-e "HOME=/tmp"
+	# Harnesses call ssh-keygen and friends; those need a passwd entry for
+	# the invoking uid. The image has no matching user, so borrow the host's.
+	-v /etc/passwd:/etc/passwd:ro
+	-v /etc/group:/etc/group:ro
 	-v "$project_root:$project_root"
 	-w "$project_root")
 

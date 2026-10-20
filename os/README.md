@@ -99,24 +99,32 @@ builds WirePlumber **0.5.18** against the system Lua interpreter, with
 introspection disabled, so the host still has no Python runtime.
 `rtkit` is not included: Buildroot has no `rtkit` package. Factory
 `module.rt.args` drop-ins disable RTKit and the realtime portal for PipeWire
-and WirePlumber. Realtime scheduling and locked memory come from the
-`pipewire.service` and `wireplumber.service` user-service limits and the
-PREEMPT_RT kernel.
+and WirePlumber. Realtime scheduling and locked memory for the audio daemons
+come from the `pipewire.service` and `wireplumber.service` user-service
+limits and the PREEMPT_RT kernel.
+
+The image enables Linux-PAM (`BR2_PACKAGE_LINUX_PAM`), so systemd and OpenSSH
+are built with PAM. Interactive SSH/login sessions run `pam_limits` and
+`pam_systemd`: `@audio` rtprio 95 and unlimited memlock from
+`/etc/security/limits.d/obake-audio.conf` apply to the login shell, and
+`XDG_RUNTIME_DIR` / session-bus environment come from logind rather than a
+`profile.d` workaround.
 
 The overlay provides a per-user session bus for `obake`: the standard systemd
 user `dbus.socket`/`dbus.service` units (Buildroot does not package them),
 enabled on the user manager, with the manager started at boot by
 `obake-linger.service`. That starts `pipewire.service` and
-`wireplumber.service` for `obake`. Login shells pick up `XDG_RUNTIME_DIR` /
-`DBUS_SESSION_BUS_ADDRESS` from `/etc/profile.d/obake-user-bus.sh` (no PAM),
-so `systemctl --user` works over SSH. The daemon socket is
+`wireplumber.service` for `obake`. The daemon socket is
 `/run/user/<uid>/pipewire-0`.
 
 Further meta-packages (developer tooling, audio-over-IP) are left to later
 changes.
 
-Two Buildroot options are easy to miss:
+Buildroot options that are easy to miss:
 
+- `BR2_PACKAGE_LINUX_PAM=y` turns on PAM in systemd and OpenSSH (`UsePAM
+  yes`, `pam_systemd`, `pam_limits`). Without it, login shells ignore
+  `limits.d` and need hand-rolled session env.
 - `BR2_PACKAGE_SYSTEMD_POLKIT=y` makes systemd consult polkit; without it a
   non-root user is denied unit management even with a matching polkit rule.
   Selecting it also pulls in `BR2_PACKAGE_POLKIT`.

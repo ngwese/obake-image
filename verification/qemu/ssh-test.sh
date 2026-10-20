@@ -136,6 +136,18 @@ if ! ssh_run_key "$out/id" 'bash -lc "systemctl --user status"' >/dev/null 2>&1;
 	fail "systemctl --user failed in a login shell (user-bus env missing?)"
 fi
 
+log "checking PAM login realtime limits (ulimit -r / -l)"
+rtprio="$(ssh_run_key "$out/id" 'bash -lc "ulimit -r"')" ||
+	fail "could not read ulimit -r in a login shell"
+[ "$rtprio" = "95" ] ||
+	fail "expected ulimit -r 95 in a login shell, got '$rtprio'"
+memlock="$(ssh_run_key "$out/id" 'bash -lc "ulimit -l"')" ||
+	fail "could not read ulimit -l in a login shell"
+case "$memlock" in
+unlimited | infinity | Unlimited | Infinity) ;;
+*) fail "expected unlimited memlock in a login shell, got '$memlock'" ;;
+esac
+
 log "checking the seeded host name"
 got_host="$(ssh_run_key "$out/id" 'hostname')"
 [ "$got_host" = "$seed_hostname" ] ||

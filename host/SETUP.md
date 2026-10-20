@@ -15,6 +15,12 @@ Factory config is on the read-only image:
   `/usr/lib/systemd/user/wireplumber.service.d/10-obake-rt.conf` —
   realtime limits on both user services
 
+Interactive SSH/login sessions get matching `@audio` rtprio 95 and unlimited
+memlock through PAM (`pam_limits` reading
+`/etc/security/limits.d/obake-audio.conf`) and pick up the lingering user
+runtime via `pam_systemd`. Audio services still rely on the unit `Limit*`
+drop-ins above; PAM covers login shells and processes started from them.
+
 `obake` cannot write `/etc`. Overrides that survive an update go under
 `/home/obake/.config/pipewire/` and `/home/obake/.config/wireplumber/`.
 

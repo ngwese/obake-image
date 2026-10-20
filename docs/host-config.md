@@ -127,13 +127,13 @@ needs no `/etc/hosts` edit.
 
 `obake-linger.service` starts the `obake` user manager at boot so the
 PipeWire and WirePlumber user services come up without a login. The daemon
-socket is `/run/user/<uid>/pipewire-0`. Because systemd is built without
-PAM, login shells get
-`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` from
-`/etc/profile.d/obake-user-bus.sh` when `/run/user/<uid>` exists, so
-`systemctl --user` works in an interactive SSH session without manually
-exporting those variables. Non-login remote commands (`ssh host cmd`) do not
-source `profile.d`; use an interactive login or `bash -lc '...'`.
+socket is `/run/user/<uid>/pipewire-0`. Linux-PAM is enabled: SSH and login
+sessions run `pam_systemd` (so `XDG_RUNTIME_DIR` and the session bus are set
+for interactive logins) and `pam_limits` (so `@audio` rtprio 95 and unlimited
+memlock from `/etc/security/limits.d` apply). `systemctl --user` works in an
+interactive SSH session without manually exporting those variables. Non-login
+remote commands (`ssh host cmd`) do not open a PAM login session; use an
+interactive login or `bash -lc '...'` when you need that environment.
 
 OpenSSH's per-source auth penalty (`PerSourcePenalties`) is disabled on these
 hosts, which are administered deliberately on trusted networks.
