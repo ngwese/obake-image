@@ -57,9 +57,44 @@ ukify="$(command -v ukify || true)"
 kernel_uname="$(sed -n 's/^image=//p' "$TARGET_DIR/etc/obake/kernel" | head -1 | tr -d '[:space:]')"
 [ -n "$kernel_uname" ] || { log "error: kernel release missing from $TARGET_DIR/etc/obake/kernel"; exit 1; }
 
-# Assemble the initramfs the UKIs bundle: busybox + libc + the obake init that
-# mounts the root slot and overlays /etc from persist.
+# Assemble the initramfs the UKIs bundle: busybox + its shared libs + the
+# obake init that mounts the root slot and overlays /etc from persist.
+# BusyBox may gain DT_NEEDED entries when optional packages are enabled
+# (e.g. libpam with BR2_PACKAGE_LINUX_PAM); copy the full closure so /init
+# can run after the kernel handoff.
 initramfs="$binaries/initramfs.gz"
+copy_initramfs_lib() {
+	local name="$1" src=""
+	[ -e "$d/usr/lib/$name" ] && return 0
+	for dir in usr/lib lib; do
+		if [ -e "$TARGET_DIR/$dir/$name" ]; then
+			src="$TARGET_DIR/$dir/$name"
+			break
+		fi
+	done
+	[ -n "$src" ] || return 0
+	cp -L "$src" "$d/usr/lib/"
+}
+# Recursively copy DT_NEEDED shared libraries for an ELF already in the
+# initramfs staging tree.
+copy_elf_deps() {
+	local elf="$1"
+	local queue=("$elf")
+	local idx=0 cur need
+	while [ "$idx" -lt "${#queue[@]}" ]; do
+		cur="${queue[$idx]}"
+		idx=$((idx + 1))
+		[ -e "$cur" ] || continue
+		while IFS= read -r need; do
+			[ -n "$need" ] || continue
+			if [ ! -e "$d/usr/lib/$need" ]; then
+				copy_initramfs_lib "$need"
+				[ -e "$d/usr/lib/$need" ] && queue+=("$d/usr/lib/$need")
+			fi
+		done < <(readelf -d "$cur" 2>/dev/null |
+			sed -n 's/.*Shared library: \[\(.*\)\]/\1/p')
+	done
+}
 assemble_initramfs() {
 	d="$binaries/.initramfs"
 	rm -rf "$d"
@@ -75,10 +110,13 @@ assemble_initramfs() {
 		install -m 0755 "$TARGET_DIR/usr/bin/blkid" "$d/usr/bin/blkid"
 		ln -sf ../usr/bin/blkid "$d/bin/blkid"
 	fi
-	for l in ld-linux-aarch64.so.1 ld-linux-x86-64.so.2 ld-linux.so.2 libc.so.6 \
-		libm.so.6 libresolv.so.2 libgcc_s.so.1 libblkid.so.1 libuuid.so.1; do
-		[ -e "$TARGET_DIR/usr/lib/$l" ] && cp -L "$TARGET_DIR/usr/lib/$l" "$d/usr/lib/"
+	# Dynamic linker is PT_INTERP, not always DT_NEEDED; keep the arch list.
+	for l in ld-linux-aarch64.so.1 ld-linux-x86-64.so.2 ld-linux.so.2 \
+		libgcc_s.so.1; do
+		copy_initramfs_lib "$l"
 	done
+	copy_elf_deps "$d/bin/busybox"
+	[ -e "$d/usr/bin/blkid" ] && copy_elf_deps "$d/usr/bin/blkid"
 	install -m 0755 "$here/initramfs/init" "$d/init"
 	( cd "$d" && find . -print0 | cpio --null -o -H newc 2>/dev/null | gzip -9 ) >"$initramfs"
 	log "assembled initramfs ($(du -h "$initramfs" | cut -f1))"
