@@ -1,0 +1,17 @@
+[Unit]
+Description=Precision Time Protocol daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=obake
+Group=obake
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_ADMIN CAP_SYS_TIME
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_ADMIN CAP_SYS_TIME
+NoNewPrivileges=yes
+ExecStart=/usr/sbin/ptp4l -f /home/obake/.config/linuxptp/ptp4l.cfg -m
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

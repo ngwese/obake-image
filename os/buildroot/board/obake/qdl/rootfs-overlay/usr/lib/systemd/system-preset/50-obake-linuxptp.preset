@@ -1,0 +1,2 @@
+disable ptp4l.service
+disable phc2sys.service

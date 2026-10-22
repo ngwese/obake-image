@@ -11,7 +11,8 @@ reference that owns the detail.
 - [5. Installing on bare metal (x86_64 / qdl)](#5-installing-on-bare-metal-x86_64--qdl)
 - [6. SSH access](#6-ssh-access)
 - [7. Filesystem layout: read-only root vs writable contract](#7-filesystem-layout-read-only-root-vs-writable-contract)
-- [8. Updating over USB](#8-updating-over-usb)
+- [8. PTP on qdl](#8-ptp-on-qdl)
+- [9. Updating over USB](#9-updating-over-usb)
 
 ## 1. Orientation
 
@@ -435,8 +436,36 @@ The partition layout itself (`OBKA_ESP`, `OBKA_ROOT_A`, `OBKA_ROOT_B`,
 `OBKA_PERSIST`, `OBKA_USER`) is defined once in `../os/partition-layout.json`
 and shared by the installer and the disk builder.
 
+## 8. PTP on qdl
 
-## 8. Updating over USB
+The `qdl` image includes the linuxptp 4.4 commands (`ptp4l`, `phc2sys`,
+`pmc`, `phc_ctl`, `hwstamp_ctl`, `timemaster`, `ts2phc`, `nsm`, and
+`tz2alt`). `ptp4l.service` and `phc2sys.service` are installed and stopped.
+Nothing starts them until you enable them.
+
+The live configuration is on the user partition, owned by `obake`:
+
+- `/home/obake/.config/linuxptp/ptp4l.cfg`
+- `/home/obake/.config/linuxptp/phc2sys.env`
+
+A missing file is copied from `/usr/share/obake/linuxptp/` on boot. An
+existing file is left as you edited it. Both files ship with the interface
+name `REPLACE_WITH_INTERFACE`. Replace that token in both files with the
+AES67 interface (the same name in each) before enabling either service.
+The seeded `ptp4l` profile is an AES67/RAVENNA client. The seeded
+`phc2sys` options slew the system clock.
+
+```
+systemctl enable --now ptp4l
+systemctl enable --now phc2sys
+```
+
+`ptp4l` does not start `phc2sys`. Logs are `journalctl -u ptp4l` and
+`journalctl -u phc2sys`. One-shot tools that need the same privileges
+(`hwstamp_ctl`, `phc_ctl`) are run with `sudo`. A PTP lock on the
+Quieter DL NIC is a board test, not a QEMU test.
+
+## 9. Updating over USB
 
 Updates are user-initiated, signed RAUC bundles. The signature is verified
 against the project keyring before any slot is written, so the transport does

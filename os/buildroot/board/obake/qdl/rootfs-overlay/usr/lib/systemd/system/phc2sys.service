@@ -1,0 +1,17 @@
+[Unit]
+Description=Synchronize the system clock from a PTP hardware clock
+After=ptp4l.service
+
+[Service]
+Type=simple
+User=obake
+Group=obake
+AmbientCapabilities=CAP_SYS_TIME
+CapabilityBoundingSet=CAP_SYS_TIME
+NoNewPrivileges=yes
+EnvironmentFile=/home/obake/.config/linuxptp/phc2sys.env
+ExecStart=/usr/sbin/phc2sys $PHC2SYS_OPTS
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
