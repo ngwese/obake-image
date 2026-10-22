@@ -1,0 +1,77 @@
+diff -Naur /tmp/r8125-orig/r8125-9.018.00/src/r8125_n.c /tmp/r8125-src/r8125-9.018.00/src/r8125_n.c
+--- a/src/r8125_n.c	2026-06-02 02:58:28.000000000 -0700
++++ b/src/r8125_n.c	2026-10-19 22:15:28.774493344 -0700
+@@ -17725,6 +17725,12 @@
+ #else
+         .ndo_siocdevprivate = rtl8125_siocdevprivate,
+         .ndo_eth_ioctl      = rtl8125_do_ioctl,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0)
++#ifdef ENABLE_PTP_SUPPORT
++        .ndo_hwtstamp_get   = rtl8125_ndo_hwtstamp_get,
++        .ndo_hwtstamp_set   = rtl8125_ndo_hwtstamp_set,
++#endif /* ENABLE_PTP_SUPPORT */
++#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0) */
+ #endif //LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
+         .ndo_set_multicast_list = rtl8125_set_rx_mode,
+diff -Naur /tmp/r8125-orig/r8125-9.018.00/src/r8125_ptp.c /tmp/r8125-src/r8125-9.018.00/src/r8125_ptp.c
+--- a/src/r8125_ptp.c	2026-06-02 02:58:28.000000000 -0700
++++ b/src/r8125_ptp.c	2026-10-19 22:14:20.094091560 -0700
+@@ -987,6 +987,39 @@
+         return ret;
+ }
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0)
++int rtl8125_ndo_hwtstamp_get(struct net_device *netdev,
++                             struct kernel_hwtstamp_config *config)
++{
++        int ret;
++
++        if (!config->ifr)
++                return -EOPNOTSUPP;
++
++        ret = rtl8125_get_tstamp(netdev, config->ifr);
++        if (!ret)
++                config->copied_to_user = true;
++        return ret;
++}
++
++int rtl8125_ndo_hwtstamp_set(struct net_device *netdev,
++                             struct kernel_hwtstamp_config *config,
++                             struct netlink_ext_ack *extack)
++{
++        int ret;
++
++        (void)extack;
++
++        if (!config->ifr)
++                return -EOPNOTSUPP;
++
++        ret = rtl8125_set_tstamp(netdev, config->ifr);
++        if (!ret)
++                config->copied_to_user = true;
++        return ret;
++}
++#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0) */
++
+ static void rtl8125_rx_phy_ptp_pktstamp(struct rtl8125_private *tp, struct sk_buff *skb, u8 type)
+ {
+         struct timespec64 ts64;
+diff -Naur /tmp/r8125-orig/r8125-9.018.00/src/r8125_ptp.h /tmp/r8125-src/r8125-9.018.00/src/r8125_ptp.h
+--- a/src/r8125_ptp.h	2026-06-02 02:58:28.000000000 -0700
++++ b/src/r8125_ptp.h	2026-10-19 22:14:20.094339394 -0700
+@@ -150,6 +150,14 @@
+ 
+ int rtl8125_ptp_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd);
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0)
++int rtl8125_ndo_hwtstamp_get(struct net_device *netdev,
++                             struct kernel_hwtstamp_config *config);
++int rtl8125_ndo_hwtstamp_set(struct net_device *netdev,
++                             struct kernel_hwtstamp_config *config,
++                             struct netlink_ext_ack *extack);
++#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0) */
++
+ void rtl8125_set_phy_local_time(struct rtl8125_private *tp);
+ 
+ void rtl8125_rx_phy_ptp_timestamp(struct rtl8125_private *tp, struct sk_buff *skb);

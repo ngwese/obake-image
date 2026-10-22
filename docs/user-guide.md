@@ -212,7 +212,9 @@ image/verification/qemu/boot-test.sh \
 - The Rockchip boot chain for `rk35xx`: DDR/TPL, TF-A BL31, and U-Boot
   bring-up before the first partition.
 - Peripheral and driver bring-up on a specific board, including RTL8125
-  ethernet (`r8169`) and USB MIDI 2.0 (UMP) on `qdl`.
+  ethernet (`r8125`, with hardware timestamping) and USB MIDI 2.0 (UMP)
+  on `qdl`. A PTP capability check on that NIC (`ethtool -T`,
+  `hwstamp_ctl`) is a board test, not a QEMU test.
 - The firmware graphics path: the UEFI GOP framebuffer and the local text
   console that renders the installer on a monitor.
 - Real storage device names and the physical medium, which is why the target
@@ -432,6 +434,7 @@ persisted `/var` list and the exact partition roles, is in `host-config.md`.
 The partition layout itself (`OBKA_ESP`, `OBKA_ROOT_A`, `OBKA_ROOT_B`,
 `OBKA_PERSIST`, `OBKA_USER`) is defined once in `../os/partition-layout.json`
 and shared by the installer and the disk builder.
+
 
 ## 8. Updating over USB
 

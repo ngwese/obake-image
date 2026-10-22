@@ -1,0 +1,8 @@
+config BR2_PACKAGE_R8125
+	bool "r8125"
+	depends on BR2_LINUX_KERNEL
+	help
+	  Realtek out-of-tree driver for RTL8125 2.5GbE, built with
+	  hardware timestamping for the qdl board.
+
+	  https://www.realtek.com/
