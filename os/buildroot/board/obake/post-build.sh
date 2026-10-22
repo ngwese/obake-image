@@ -58,7 +58,7 @@ if [ -n "$serial_cons" ]; then
 fi
 
 # The version of the kernel actually built. Prefer linux's kernel.release
-# (LOCALVERSION is -<board>-<rev>) so a stale
+# (LOCALVERSION is -<rev>-<board>) so a stale
 # lib/modules/<old> tree from an earlier build cannot win the scan.
 kver=""
 kconfig=""

@@ -94,10 +94,10 @@ The userland packages are grouped into `BR2_EXTERNAL` meta-packages:
 layers are added the same way. The realtime kernel is built from the pinned
 source with a shared realtime fragment (`PREEMPT_RT`, 1000 Hz tick) and a
 host fragment (loop/SquashFS/initrd/FAT/dm-verity and the writable-contract
-options). The kernel local version is `-<board>-<rev>`, where `<board>` is
-the board id (`generic-x86_64`, `generic-aarch64`, `rk35xx`, `qdl`) and
-`<rev>` is the history index of that board's kernel configuration, so
-`uname -r` looks like `<pinned-kernel-version>-rk35xx-<rev>`. An image-only
+options). The kernel local version is `-<rev>-<board>`, where `<rev>` is the
+history index of that board's kernel configuration and `<board>` is the
+board id (`generic-x86_64`, `generic-aarch64`, `rk35xx`, `qdl`), so
+`uname -r` looks like `<pinned-kernel-version>-<rev>-rk35xx`. An image-only
 commit does not change it.
 
 The running image presents as **obake-os** in `/etc/os-release` and greets

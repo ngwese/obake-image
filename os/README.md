@@ -172,12 +172,12 @@ Rockchip SoC drivers. `post-build.sh` records the built kernel version under
 `/etc/obake/kernel` and refuses to produce an image whose kernel is not
 realtime.
 
-`build.sh` passes `-<board>-<rev>` as the kernel `LOCALVERSION` make variable.
-`<board>` is the board id (`generic-x86_64`, `generic-aarch64`, `rk35xx`,
-`qdl`). `<rev>` is the 1-based history index of that board's kernel
-configuration in the image git tree: the same configuration keeps the same
-rev, and an image-only commit does not change it. `uname -r` looks like
-`7.2.9-generic-x86_64-<rev>` or `7.2.9-rk35xx-<rev>`. Board `linux.config`
+`build.sh` passes `-<rev>-<board>` as the kernel `LOCALVERSION` make variable.
+`<rev>` is the 1-based history index of that board's kernel configuration in
+the image git tree: the same configuration keeps the same rev, and an
+image-only commit does not change it. `<board>` is the board id
+(`generic-x86_64`, `generic-aarch64`, `rk35xx`, `qdl`). `uname -r` looks like
+`7.2.9-<rev>-generic-x86_64` or `7.2.9-<rev>-rk35xx`. Board `linux.config`
 files leave `CONFIG_LOCALVERSION` empty so it is not prefixed again.
 
 ### OS identity

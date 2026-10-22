@@ -152,7 +152,7 @@ cat "$base_config" "$board_config" >"$merged"
 # artifacts (console, bootloader) without re-deriving the board from the config.
 export OBAKE_BOARD="$board"
 
-# Kernel local version (-<board>-<rev>) from the image git history of this
+# Kernel local version (-<rev>-<board>) from the image git history of this
 # board's kernel configuration. Refresh on every invocation; if it changed
 # since the last build, drop linux stamps so the package rebuilds with the
 # new release string. A non-zero helper status (shallow checkout) fails the

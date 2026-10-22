@@ -70,37 +70,37 @@ mkdir -p "$root"
 git -C "$root" init -q
 write_tree y
 commit_tree 'config 1'
-expect "$(rev_of "$root")" "-${board}-1" 'first hash'
+expect "$(rev_of "$root")" "-1-${board}" 'first hash'
 
 write_tree n
 commit_tree 'config 2'
-expect "$(rev_of "$root")" "-${board}-2" 'second hash'
+expect "$(rev_of "$root")" "-2-${board}" 'second hash'
 
 write_tree y
 commit_tree 'restore config 1'
-expect "$(rev_of "$root")" "-${board}-1" 'reverted hash'
+expect "$(rev_of "$root")" "-1-${board}" 'reverted hash'
 
 write_tree n
 before="$(git -C "$root" status --porcelain)"
-expect "$(rev_of "$root")" "-${board}-2" 'dirty known hash'
+expect "$(rev_of "$root")" "-2-${board}" 'dirty known hash'
 after="$(git -C "$root" status --porcelain)"
 [ "$before" = "$after" ] || fail 'helper modified the repo on a known dirty hash'
 
 write_tree m
 before="$(git -C "$root" status --porcelain)"
-expect "$(rev_of "$root")" "-${board}-3" 'dirty unseen hash'
+expect "$(rev_of "$root")" "-3-${board}" 'dirty unseen hash'
 after="$(git -C "$root" status --porcelain)"
 [ "$before" = "$after" ] || fail 'helper modified the repo on an unseen dirty hash'
 
 write_tree y '# comment only'
 commit_tree 'comment only'
-expect "$(rev_of "$root")" "-${board}-1" 'comment-only edit'
+expect "$(rev_of "$root")" "-1-${board}" 'comment-only edit'
 
 write_tree y '' '-nope'
-expect "$(rev_of "$root")" "-${board}-1" 'CONFIG_LOCALVERSION edit'
+expect "$(rev_of "$root")" "-1-${board}" 'CONFIG_LOCALVERSION edit'
 
 write_tree y '' '' '9.9.9'
-expect "$(rev_of "$root")" "-${board}-1" 'kernel source-pin edit'
+expect "$(rev_of "$root")" "-1-${board}" 'kernel source-pin edit'
 
 git -c protocol.file.allow=always clone -q --depth 1 "file://${root}" "$shallow"
 if rev_of "$shallow" >/dev/null 2>&1; then
@@ -108,6 +108,6 @@ if rev_of "$shallow" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$nogit"
-expect "$(rev_of "$nogit")" "-${board}-0" 'missing git metadata'
+expect "$(rev_of "$nogit")" "-0-${board}" 'missing git metadata'
 
 printf 'kernel-config-rev-test: ok\n'

@@ -5,7 +5,7 @@
 # fragment to guarantee the writable contract, the Singularity runtime, the
 # EFI/vfat ESP, and RAUC's dm-verity bundles all have their kernel support.
 #
-# The kernel local version (-<board>-<rev>) is injected at build time via the
+# The kernel local version (-<rev>-<board>) is injected at build time via the
 # LOCALVERSION make variable. Board linux.config files leave CONFIG_LOCALVERSION
 # empty so it is not prefixed again. Do not enable AUTO (the kernel input is a
 # tarball).

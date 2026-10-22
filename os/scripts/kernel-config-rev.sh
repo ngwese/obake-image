@@ -4,13 +4,13 @@
 # configuration.
 #
 # Usage:
-#   kernel-config-rev.sh <board>    # -<board>-<rev>
+#   kernel-config-rev.sh <board>    # -<rev>-<board>
 #
 # <rev> is the 1-based index of the current kernel-config hash in the ordered
 # set of distinct hashes seen in git history, oldest first. The same hash
 # reuses its rev. A dirty tree with a new hash uses the next rev and is not
 # written back. A shallow checkout fails. When git metadata cannot be read
-# the script prints -<board>-0.
+# the script prints -0-<board>.
 #
 # OBAKE_IMAGE_ROOT overrides the image repository (parent of os/). The build
 # leaves it unset.
@@ -40,7 +40,7 @@ git config --global --add safe.directory "$image_root" >/dev/null 2>&1 || true
 
 if ! git -C "$image_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
 	! git -C "$image_root" rev-parse --verify HEAD >/dev/null 2>&1; then
-	printf -- '-%s-0\n' "$board"
+	printf -- '-0-%s\n' "$board"
 	exit 0
 fi
 if [ "$(git -C "$image_root" rev-parse --is-shallow-repository 2>/dev/null || true)" = true ]; then
@@ -146,4 +146,4 @@ done
 if [ -z "$rev" ]; then
 	rev=$((${#hashes[@]} + 1))
 fi
-printf -- '-%s-%s\n' "$board" "$rev"
+printf -- '-%s-%s\n' "$rev" "$board"

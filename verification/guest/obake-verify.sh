@@ -287,7 +287,7 @@ check_os_identity() {
 	! grep -q '^NAME=Buildroot$' /etc/os-release || return 1
 }
 
-# Kernel release ends with -<board>-<rev>. Generic board files store
+# Kernel release ends with -<rev>-<board>. Generic board files store
 # board=generic plus arch, which selects generic-x86_64 or generic-aarch64.
 check_kernel_identity() {
 	rel="$(uname -r)"
@@ -308,7 +308,7 @@ check_kernel_identity() {
 		return 1
 		;;
 	esac
-	printf '%s\n' "$rel" | grep -Eq -- "-${board_id}-[1-9][0-9]*$" || return 1
+	printf '%s\n' "$rel" | grep -Eq -- "-[1-9][0-9]*-${board_id}$" || return 1
 	printf '%s\n' "$rel" | grep -Eq -- '-g([0-9a-f]+|nogit)(-dirty)?$' && return 1
 	return 0
 }

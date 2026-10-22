@@ -16,7 +16,7 @@ OPENSSH_CONF_OPTS := $(filter-out \
 	--disable-lastlog --disable-utmp --disable-utmpx \
 	--disable-wtmp --disable-wtmpx,$(OPENSSH_CONF_OPTS))
 
-# Inject -<board>-<rev> into the kernel release string via the LOCALVERSION
+# Inject -<rev>-<board> into the kernel release string via the LOCALVERSION
 # make variable (appended after CONFIG_LOCALVERSION by scripts/setlocalversion).
 # Board linux.config files leave CONFIG_LOCALVERSION empty so this is the whole
 # suffix. <rev> is the history index of that board's kernel configuration.
