@@ -4,6 +4,10 @@
 
 include $(sort $(wildcard $(BR2_EXTERNAL_OBAKE_PATH)/package/*/*.mk))
 
+# host-rust-bin is pinned to 1.99.1 by scripts/pin-rust.sh (called from
+# build.sh), which rewrites package/rust{,-bin} in the unpacked Buildroot
+# tree and installs matching hashes from board/obake/patches/.
+
 # RAUC's optional OpenSSL PKCS#11 engine support fails to build against the
 # pinned OpenSSL (engine.h include-order bug). obake does not use HSM-backed
 # keys, so disable it. This file is included after package/rauc/rauc.mk, so the

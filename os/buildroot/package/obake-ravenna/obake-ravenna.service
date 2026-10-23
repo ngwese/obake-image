@@ -4,11 +4,12 @@
 [Unit]
 Description=obake RAVENNA session daemon
 Documentation=file:/usr/share/obake/obake-ravenna/config.toml
-After=pipewire.service
+After=pipewire.service avahi-daemon.service
 Wants=pipewire.service
 
 [Service]
 Type=simple
+Environment=RUST_LOG=info
 ExecStart=/usr/bin/obake-ravenna run
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure

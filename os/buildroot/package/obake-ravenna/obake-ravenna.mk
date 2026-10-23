@@ -8,7 +8,8 @@
 ################################################################################
 
 OBAKE_RAVENNA_VERSION = 0.1.0
-OBAKE_RAVENNA_SITE = $(BR2_EXTERNAL_OBAKE_PATH)/../../services/obake-ravenna
+# BR2_EXTERNAL is image/os/buildroot; three levels up is the repo root.
+OBAKE_RAVENNA_SITE = $(BR2_EXTERNAL_OBAKE_PATH)/../../../services/obake-ravenna
 OBAKE_RAVENNA_SITE_METHOD = local
 OBAKE_RAVENNA_LICENSE = MIT
 OBAKE_RAVENNA_REDISTRIBUTE = NO
@@ -20,6 +21,20 @@ OBAKE_RAVENNA_DEPENDENCIES = host-rustc obake-pipewire
 OBAKE_RAVENNA_CARGO_ENV = \
 	PKG_CONFIG="$(PKG_CONFIG_HOST_BINARY)" \
 	PKG_CONFIG_ALLOW_CROSS=1
+
+# cargo-package defaults to --offline after a vendoring download step. This
+# local crate skips vendoring and fetches crates.io over the network instead.
+define OBAKE_RAVENNA_BUILD_CMDS
+	cd $(OBAKE_RAVENNA_SRCDIR) && \
+	$(TARGET_MAKE_ENV) \
+		$(TARGET_CONFIGURE_OPTS) \
+		$(PKG_CARGO_ENV) \
+		$(OBAKE_RAVENNA_CARGO_ENV) \
+		cargo build \
+			--release \
+			--manifest-path Cargo.toml \
+			--locked
+endef
 
 define OBAKE_RAVENNA_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 \

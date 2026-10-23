@@ -139,6 +139,12 @@ if [ ! -d "$src" ]; then
 	tar -C "$work" -xzf "$br_tarball"
 fi
 
+# Align host-rust-bin with services/obake-ravenna/rust-toolchain.toml.
+# Must patch the Buildroot package recipes themselves: VERSION is frozen
+# with := when package/*.mk is parsed, so external.mk overrides are not
+# enough once an older host-rust-bin is already installed.
+"$here/scripts/pin-rust.sh" "$src"
+
 # Seed the kernel tarball into Buildroot's download cache after verifying it.
 fetch "$kurl" "$dl/linux-$kver.tar.xz" "$ksha"
 
@@ -165,6 +171,20 @@ prev_lv=""
 printf '%s\n' "$lv" >"$lv_stamp"
 export OBAKE_KERNEL_LOCALVERSION="$lv"
 printf '[build] kernel localversion=%s\n' "$lv" >&2
+
+# Out-of-tree kernel modules (r8125, …) install into
+# lib/modules/$(KERNELRELEASE). A linux reinstall with a new release
+# string replaces that tree; Buildroot does not clear module-package
+# stamps, so the .ko can vanish until the package is rebuilt.
+invalidate_out_of_tree_kmods() {
+	local d
+	for d in "$out"/build/r8125-*/; do
+		[ -d "$d" ] || continue
+		rm -f "${d}.stamp_built" "${d}.stamp_target_installed" \
+			"${d}.stamp_staging_installed" "${d}.stamp_installed"
+	done
+}
+
 if [ -n "$prev_lv" ] && [ "$prev_lv" != "$lv" ]; then
 	printf '[build] localversion changed (%s -> %s); forcing linux rebuild\n' \
 		"$prev_lv" "$lv" >&2
@@ -173,6 +193,31 @@ if [ -n "$prev_lv" ] && [ "$prev_lv" != "$lv" ]; then
 		rm -f "${d}localversion-obake" \
 			"${d}.stamp_built" "${d}.stamp_target_installed" \
 			"${d}.stamp_images_installed" "${d}.stamp_staging_installed"
+	done
+	invalidate_out_of_tree_kmods
+fi
+
+# Recover from a prior missed rebuild: module stamped installed but the
+# .ko is not under the current modules directory.
+modrel=""
+if [ -d "$out/target/lib/modules" ]; then
+	modrel="$(find "$out/target/lib/modules" -mindepth 1 -maxdepth 1 \
+		-type d -printf '%f\n' 2>/dev/null | head -1 || true)"
+fi
+if [ -z "$modrel" ] && [ -d "$out/target/usr/lib/modules" ]; then
+	modrel="$(find "$out/target/usr/lib/modules" -mindepth 1 -maxdepth 1 \
+		-type d -printf '%f\n' 2>/dev/null | head -1 || true)"
+fi
+if [ -n "$modrel" ]; then
+	for d in "$out"/build/r8125-*/; do
+		[ -f "${d}.stamp_target_installed" ] || continue
+		if [ ! -f "$out/target/lib/modules/$modrel/updates/r8125.ko" ] &&
+			[ ! -f "$out/target/usr/lib/modules/$modrel/updates/r8125.ko" ]; then
+			printf '[build] r8125.ko missing from modules %s; forcing rebuild\n' \
+				"$modrel" >&2
+			invalidate_out_of_tree_kmods
+			break
+		fi
 	done
 fi
 
