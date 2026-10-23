@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright 2026 Greg Wuller
+# SPDX-License-Identifier: MIT
+
+# obake-ravenna stream configuration.
+# Copied to /home/obake/.config/obake-ravenna/config.toml when missing.
+# An empty list transmits nothing and joins no multicast groups.
+#
+# [[source]]
+# name = "obake-out-1"
+# channels = 8
+# format = "L24"          # L16 or L24
+# frame_size = 48         # samples per packet
+# destination = "239.69.1.10:5004"
+# ttl = 15                # optional
+#
+# [[sink]]
+# name = "obake-in-1"
+# device = "Studio-IO"    # DNS-SD instance name
+# stream = "PGM-1"

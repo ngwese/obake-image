@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright 2026 Greg Wuller
+# SPDX-License-Identifier: MIT
+
+[Unit]
+Description=obake RAVENNA session daemon
+Documentation=file:/usr/share/obake/obake-ravenna/config.toml
+After=pipewire.service
+Wants=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/obake-ravenna run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

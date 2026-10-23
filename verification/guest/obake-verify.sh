@@ -327,6 +327,43 @@ check_update_rollback() {
 	rauc status 2>/dev/null | grep -q '^Activated: rootfs.1' || return 1
 }
 
+# qdl ships obake-ravenna as an enabled user service with an empty
+# stream seed. Other boards omit the binary. ptp4l stays inactive until
+# the operator enables it.
+check_obake_ravenna() {
+	board="$(sed -n 's/^board=//p' /etc/obake/board 2>/dev/null)"
+	uid=$(id -u)
+	runtime="/run/user/${uid}"
+	export XDG_RUNTIME_DIR="$runtime"
+	export DBUS_SESSION_BUS_ADDRESS="unix:path=${runtime}/bus"
+	case "$board" in
+	qdl)
+		command -v obake-ravenna >/dev/null 2>&1 || return 1
+		i=0
+		while [ "$i" -lt 15 ]; do
+			if systemctl --user is-active --quiet obake-ravenna.service; then
+				break
+			fi
+			i=$((i + 1))
+			sleep 1
+		done
+		systemctl --user is-active --quiet obake-ravenna.service || return 1
+		cfg=/home/obake/.config/obake-ravenna/config.toml
+		[ -f "$cfg" ] || return 1
+		! grep -Eq '^[[:space:]]*\[\[source\]\]' "$cfg" || return 1
+		! grep -Eq '^[[:space:]]*\[\[sink\]\]' "$cfg" || return 1
+		systemctl is-active --quiet ptp4l.service && return 1
+		return 0
+		;;
+	*)
+		if command -v obake-ravenna >/dev/null 2>&1; then
+			return 1
+		fi
+		return 0
+		;;
+	esac
+}
+
 # PipeWire and WirePlumber must be up for obake with no sound card attached.
 # The verify unit is a system service with User=obake, so the user-bus
 # variables are not in the environment. Linger starts the user manager;
@@ -411,6 +448,7 @@ run tmp-singularity-build check_tmp_singularity_build
 run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
 run pipewire-runtime check_pipewire_runtime
+run obake-ravenna check_obake_ravenna
 run dns check_dns
 run avahi check_avahi
 run git check_git

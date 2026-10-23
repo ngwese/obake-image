@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright 2026 Greg Wuller
+# SPDX-License-Identifier: MIT
+
+config BR2_PACKAGE_OBAKE_RAVENNA
+	bool "obake-ravenna"
+	depends on BR2_PACKAGE_OBAKE_PIPEWIRE
+	depends on BR2_PACKAGE_SYSTEMD
+	select BR2_PACKAGE_HOST_RUSTC
+	help
+	  RAVENNA session daemon for the obake PipeWire graph. Selected
+	  only on the qdl board. Browses and publishes RAVENNA RTSP
+	  services, serves SDP, and loads PipeWire RTP modules while
+	  ptp4l reports a lock.
+
+comment "obake-ravenna needs obake-pipewire and systemd"
+	depends on !BR2_PACKAGE_OBAKE_PIPEWIRE || !BR2_PACKAGE_SYSTEMD

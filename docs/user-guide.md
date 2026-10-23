@@ -12,7 +12,8 @@ reference that owns the detail.
 - [6. SSH access](#6-ssh-access)
 - [7. Filesystem layout: read-only root vs writable contract](#7-filesystem-layout-read-only-root-vs-writable-contract)
 - [8. PTP on qdl](#8-ptp-on-qdl)
-- [9. Updating over USB](#9-updating-over-usb)
+- [9. RAVENNA on qdl](#9-ravenna-on-qdl)
+- [10. Updating over USB](#10-updating-over-usb)
 
 ## 1. Orientation
 
@@ -465,7 +466,61 @@ systemctl enable --now phc2sys
 (`hwstamp_ctl`, `phc_ctl`) are run with `sudo`. A PTP lock on the
 Quieter DL NIC is a board test, not a QEMU test.
 
-## 9. Updating over USB
+An existing `ptp4l.cfg` that predates the management-socket seed needs
+these two keys under `[global]` so `obake-ravenna` can read the lock
+state as `obake`:
+
+```
+uds_address			/run/ptp4l/ptp4l
+uds_ro_address			/run/ptp4l/ptp4l.ro
+```
+
+`ptp4l.service` creates `/run/ptp4l` via `RuntimeDirectory=ptp4l`. A
+new seed already includes those keys. The image does not rewrite a
+home file that already exists.
+
+## 9. RAVENNA on qdl
+
+The `qdl` image runs `obake-ravenna` as an `obake` user service,
+started with PipeWire at boot. It does not retune the graph and does
+not replace WirePlumber. Other boards do not install the binary.
+
+Live configuration:
+
+- `/home/obake/.config/obake-ravenna/config.toml`
+
+A missing file is copied from `/usr/share/obake/obake-ravenna/` on
+boot. The seed defines no sources and no sinks, so nothing transmits
+until you edit it. Example:
+
+```toml
+[[source]]
+name = "obake-out-1"
+channels = 8
+format = "L24"
+frame_size = 48
+destination = "239.69.1.10:5004"
+
+[[sink]]
+name = "obake-in-1"
+device = "Studio-IO"
+stream = "PGM-1"
+```
+
+Sample rate comes from the live PipeWire graph. At 48000 Hz, allowed
+`frame_size` values are 6, 12, 16, 32, 48, 64, and 192. The NIC is the
+interface named in `ptp4l.cfg`. Streams stay down until `ptp4l` is
+enabled, locked, and that interface exists.
+
+```
+systemctl --user reload obake-ravenna
+obake-ravenna status
+```
+
+Interoperation with a real RAVENNA device is a board test, not a QEMU
+test.
+
+## 10. Updating over USB
 
 Updates are user-initiated, signed RAUC bundles. The signature is verified
 against the project keyring before any slot is written, so the transport does
