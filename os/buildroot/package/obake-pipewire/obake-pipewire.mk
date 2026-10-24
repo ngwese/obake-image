@@ -11,7 +11,8 @@ OBAKE_PIPEWIRE_LICENSE = MIT, LGPL-2.1+ (libspa-alsa), GPL-2.0 (libjackserver)
 OBAKE_PIPEWIRE_LICENSE_FILES = COPYING LICENSE
 OBAKE_PIPEWIRE_INSTALL_STAGING = YES
 OBAKE_PIPEWIRE_DEPENDENCIES = \
-	host-pkgconf alsa-lib dbus systemd $(TARGET_NLS_DEPENDENCIES)
+	host-pkgconf alsa-lib dbus libsndfile ncurses readline systemd \
+	$(TARGET_NLS_DEPENDENCIES)
 OBAKE_PIPEWIRE_LDFLAGS = $(TARGET_NLS_LIBS)
 
 # 1.6 defaults that must be overridden: session-managers fetches WirePlumber
@@ -74,10 +75,10 @@ OBAKE_PIPEWIRE_CONF_OPTS = \
 	-Dgsettings=disabled \
 	-Dgsettings-pulse-schema=disabled \
 	-Dlibusb=disabled \
-	-Dpw-cat=disabled \
-	-Dsndfile=disabled \
+	-Dpw-cat=enabled \
+	-Dsndfile=enabled \
 	-Dopus=disabled \
-	-Dreadline=disabled \
+	-Dreadline=enabled \
 	-Dsdl2=disabled \
 	-Dcompress-offload=disabled \
 	-Decho-cancel-webrtc=disabled \

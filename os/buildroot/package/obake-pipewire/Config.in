@@ -11,6 +11,10 @@ config BR2_PACKAGE_OBAKE_PIPEWIRE
 	select BR2_PACKAGE_ALSA_LIB_SEQ
 	select BR2_PACKAGE_ALSA_LIB_UCM
 	select BR2_PACKAGE_DBUS
+	select BR2_PACKAGE_LIBSNDFILE
+	select BR2_PACKAGE_NCURSES
+	select BR2_PACKAGE_NCURSES_WCHAR # pw-top
+	select BR2_PACKAGE_READLINE # pw-cli
 	help
 	  PipeWire 1.6.9 for the obake host: the daemon, the ALSA plugin,
 	  and pipewire-jack. The plugin that makes PipeWire a client of

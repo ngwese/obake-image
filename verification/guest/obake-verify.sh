@@ -404,6 +404,18 @@ check_pipewire_runtime() {
 	grep -q 'usb_modeswitch' "$rule" || return 1
 	grep -q '0926' "$rule" || return 1
 	grep -q '0206' "$rule" || return 1
+	# Presence only. pw-top and pw-cat can need a terminal or a live
+	# graph, and this check runs with no audio device.
+	for cmd in pw-top pw-cat spa-resample pw-play pw-record \
+		pw-midiplay pw-midirecord pw-midi2play pw-midi2record \
+		pw-dsdplay pw-encplay pw-sysex
+	do
+		command -v "$cmd" >/dev/null 2>&1 || return 1
+	done
+	if command -v pw-v4l2 >/dev/null 2>&1; then
+		return 1
+	fi
+	grep -a -q 'libreadline.so' /usr/bin/pw-cli || return 1
 }
 
 # A signed bundle must install to the inactive slot (skipped when no bundle was
