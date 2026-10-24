@@ -50,7 +50,7 @@ for v in VERIFY VERIFY_HEALTH VERIFY_PERSIST VERIFY_UPDATE VERIFY_INTEGRATION \
 	CONSOLE INSTALLER_TARGET_DISK INSTALLER_PRESERVE_USER \
 	INSTALLER_POWEROFF_DELAY \
 	MOCK_HEALTH HEALTH_MAX_ATTEMPTS LOCAL_BUNDLE UPDATE_URL \
-	OBAKE_BOARD OBAKE_PROFILE OBAKE_OUT; do
+	OBAKE_BOARD OBAKE_PROFILE OBAKE_OUT LIBCLANG_PATH; do
 	[ -n "${!v:-}" ] && forward+=(-e "$v=${!v}")
 done
 
@@ -62,6 +62,18 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 mkdir -p "$HOME"
 if [ ! -d /cache/dl ] && [ -d /work/image/os/buildroot/vendor/dl ]; then
   cp -a /work/image/os/buildroot/vendor/dl /cache/dl
+fi
+# clang-sys (bindgen / obake-ravenna) needs an explicit libclang directory
+# when the shared library lives under /usr/lib/llvm-*/lib.
+if [ -z "${LIBCLANG_PATH:-}" ]; then
+  for d in /usr/lib/llvm-*/lib; do
+    [ -d "$d" ] || continue
+    if [ -e "$d/libclang.so" ] || ls "$d"/libclang.so.* >/dev/null 2>&1 \
+      || ls "$d"/libclang-*.so >/dev/null 2>&1; then
+      export LIBCLANG_PATH="$d"
+      break
+    fi
+  done
 fi
 exec "$@"
 '

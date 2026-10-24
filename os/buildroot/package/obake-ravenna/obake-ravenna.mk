@@ -16,6 +16,8 @@ OBAKE_RAVENNA_REDISTRIBUTE = NO
 
 # Build after PipeWire so PKG_CONFIG can see staging libpipewire. The
 # daemon does not retune OBAKE_PIPEWIRE_VERSION or OBAKE_WIREPLUMBER_VERSION.
+# libspa-sys/pipewire-sys run bindgen at build time and need host libclang;
+# image/build/build-env provides libclang-dev and exports LIBCLANG_PATH.
 OBAKE_RAVENNA_DEPENDENCIES = host-rustc obake-pipewire
 
 OBAKE_RAVENNA_CARGO_ENV = \

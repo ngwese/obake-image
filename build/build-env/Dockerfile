@@ -39,9 +39,13 @@ RUN apt-get update \
         openssl \
         rauc \
         squashfs-tools \
+        libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Buildroot builds some host tools as root.
 ENV FORCE_UNSAFE_CONFIGURE=1
+
+# libclang-dev: bindgen (pipewire-sys / obake-ravenna). run.sh sets
+# LIBCLANG_PATH to the matching /usr/lib/llvm-*/lib directory.
 
 WORKDIR /work
