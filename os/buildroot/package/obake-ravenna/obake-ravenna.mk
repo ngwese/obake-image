@@ -22,10 +22,20 @@ OBAKE_RAVENNA_CARGO_ENV = \
 	PKG_CONFIG="$(PKG_CONFIG_HOST_BINARY)" \
 	PKG_CONFIG_ALLOW_CROSS=1
 
+# Re-copy from SITE on every extract (build.sh clears extract stamps when
+# the source fingerprint changes). --delete drops removed files; skip the
+# developer's cargo target/ tree.
+define OBAKE_RAVENNA_EXTRACT_CMDS
+	rsync -a --delete \
+		--exclude target/ \
+		--exclude .git/ \
+		$(OBAKE_RAVENNA_SITE)/ $(@D)/
+endef
+
 # cargo-package defaults to --offline after a vendoring download step. This
 # local crate skips vendoring and fetches crates.io over the network instead.
 define OBAKE_RAVENNA_BUILD_CMDS
-	cd $(OBAKE_RAVENNA_SRCDIR) && \
+	cd $(@D) && \
 	$(TARGET_MAKE_ENV) \
 		$(TARGET_CONFIGURE_OPTS) \
 		$(PKG_CARGO_ENV) \

@@ -221,5 +221,46 @@ if [ -n "$modrel" ]; then
 	done
 fi
 
+# SITE_METHOD=local copies sources at extract and keeps stamps while
+# VERSION is unchanged. Fingerprint the daemon tree and package recipe
+# so update builds pick up services/obake-ravenna edits.
+invalidate_obake_ravenna() {
+	local d
+	for d in "$out"/build/obake-ravenna-*/; do
+		[ -d "$d" ] || continue
+		rm -f "${d}.stamp_extracted" "${d}.stamp_rsynced" \
+			"${d}.stamp_patched" "${d}.stamp_configured" \
+			"${d}.stamp_built" "${d}.stamp_target_installed" \
+			"${d}.stamp_staging_installed" "${d}.stamp_images_installed" \
+			"${d}.stamp_installed"
+	done
+}
+
+ravenna_src="$(cd "$here/../../../services/obake-ravenna" && pwd)"
+ravenna_pkg="$here/package/obake-ravenna"
+ravenna_fp_file="$out/obake-ravenna-srcstamp"
+ravenna_fp="$(
+	{
+		find "$ravenna_pkg" -type f -print0 2>/dev/null || true
+		find "$ravenna_src" -type f \
+			! -path '*/target/*' ! -path '*/.git/*' -print0 2>/dev/null || true
+	} | sort -z | xargs -0 -r sha256sum | sha256sum | awk '{print $1}'
+)"
+prev_ravenna_fp=""
+[ -f "$ravenna_fp_file" ] && prev_ravenna_fp="$(tr -d '[:space:]' <"$ravenna_fp_file")"
+printf '%s\n' "$ravenna_fp" >"$ravenna_fp_file"
+if [ "$prev_ravenna_fp" != "$ravenna_fp" ]; then
+	# Empty prev means first run with fingerprinting; still drop any
+	# pre-existing stamps so an update cannot ship a stale binary.
+	if [ -n "$prev_ravenna_fp" ]; then
+		printf '[build] obake-ravenna sources changed; forcing rebuild\n' >&2
+	else
+		printf '[build] obake-ravenna srcstamp initialized; forcing rebuild if stamped\n' >&2
+	fi
+	invalidate_obake_ravenna
+else
+	printf '[build] obake-ravenna srcstamp=%s\n' "$ravenna_fp" >&2
+fi
+
 make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" DEFCONFIG="$merged" defconfig
 make -C "$src" O="$out" BR2_EXTERNAL="$here" DL_DIR="$dl" "$@"
