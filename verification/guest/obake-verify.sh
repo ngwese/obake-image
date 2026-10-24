@@ -175,6 +175,13 @@ check_avahi() {
 	systemctl is-active --quiet avahi-daemon
 }
 
+# NTP client must be enabled and running. Do not require NTPSynchronized —
+# sandboxes may block UDP/123.
+check_timesyncd() {
+	systemctl is-enabled --quiet systemd-timesyncd.service || return 1
+	systemctl is-active --quiet systemd-timesyncd.service
+}
+
 check_git() {
 	command -v git >/dev/null 2>&1
 }
@@ -463,6 +470,7 @@ run pipewire-runtime check_pipewire_runtime
 run obake-ravenna check_obake_ravenna
 run dns check_dns
 run avahi check_avahi
+run timesyncd check_timesyncd
 run git check_git
 run rauc-status check_rauc_status
 run esp-access check_esp_access

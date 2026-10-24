@@ -27,8 +27,8 @@ boot_timeout="${INTEGRATION_BOOT_TIMEOUT:-400}"
 scripts="$project_root/image/os/scripts"
 
 base_version="${INTEGRATION_BASE_VERSION:-0.0.0}"
-good_version="${INTEGRATION_GOOD_VERSION:-0.5.0}"
-bad_version="${INTEGRATION_BAD_VERSION:-0.6.0}"
+good_version="${INTEGRATION_GOOD_VERSION:-0.6.0}"
+bad_version="${INTEGRATION_BAD_VERSION:-0.7.0}"
 disk_size="${INTEGRATION_DISK_SIZE:-8G}"
 
 log() { printf '[integration] %s\n' "$*" >&2; }

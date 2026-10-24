@@ -97,6 +97,11 @@ preserves user data.
   reinstall that recreates the seed) to pick up the optional-cabling policy.
 - `systemd-resolved` provides DNS; `/etc/resolv.conf` is the standard symlink
   to `/run/systemd/resolve/stub-resolv.conf`, so names from DHCP resolve.
+- `systemd-timesyncd` is enabled by default and sets the system clock from
+  NTP when servers are reachable. Boot does not wait on a successful sync
+  (`systemd-time-wait-sync` stays off). If you enable `phc2sys` to discipline
+  the system clock from a PTP hardware clock, stop and disable timesyncd
+  first so the two do not fight.
 - `avahi-daemon` (with `libnss-mdns`) provides mDNS/`.local` name resolution.
 - `git` is installed for inspecting and fetching configuration repositories.
 
