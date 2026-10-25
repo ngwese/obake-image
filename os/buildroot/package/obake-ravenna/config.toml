@@ -14,6 +14,11 @@
 # # [ptp]
 # # lock_hold_ms = 2000
 #
+# # Peer discovery for [[sink]] (ms). Defaults: settle 2000, period 5000.
+# # [discovery]
+# # settle_ms = 2000
+# # period_ms = 5000
+#
 # # RTP frames per packet (not the PipeWire quantum).
 # [packet]
 # frames = 48
