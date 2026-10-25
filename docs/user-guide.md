@@ -453,8 +453,10 @@ A missing file is copied from `/usr/share/obake/linuxptp/` on boot. An
 existing file is left as you edited it. Both files ship with the interface
 name `REPLACE_WITH_INTERFACE`. Replace that token in both files with the
 AES67 interface (the same name in each) before enabling either service.
-The seeded `ptp4l` profile is an AES67/RAVENNA client. The seeded
-`phc2sys` options slew the system clock.
+The seeded `ptp4l` profile is an AES67/RAVENNA client. It sets
+`step_threshold` to `0.001` (1 ms) so the PHC jumps when the offset is
+large after a grandmaster returns, instead of slewing for hours. The
+seeded `phc2sys` options slew the system clock and do not step it.
 
 ```
 systemctl enable --now ptp4l
@@ -474,6 +476,18 @@ state as `obake`:
 uds_address			/run/ptp4l/ptp4l
 uds_ro_address			/run/ptp4l/ptp4l.ro
 ```
+
+A config that predates the `step_threshold` seed should also add:
+
+```
+step_threshold			0.001
+```
+
+Then restart `ptp4l` (`systemctl restart ptp4l`). Without that key,
+linuxptp keeps the default `0.0` (step only on the first update after
+start), so a multi-second offset after a late grandmaster return only
+slews. `obake-ravenna` will hold streams down while the absolute offset
+stays above its threshold (see the RAVENNA section).
 
 `ptp4l.service` creates `/run/ptp4l` via `RuntimeDirectory=ptp4l`. A
 new seed already includes those keys. The image does not rewrite a
@@ -521,8 +535,10 @@ stream = "Anubis_Combo 1/2"
 
 `[graph].rate` is the media clock (48000 Hz allows packet sizes 6, 12,
 16, 32, 48, 64, and 192). The NIC is the interface named in
-`ptp4l.cfg`. Streams stay down until `ptp4l` is enabled, locked, and
-that interface exists.
+`ptp4l.cfg`. Streams stay down until `ptp4l` is enabled, locked, the
+lock-hold and offset gates pass (`[ptp].lock_hold_ms` and
+`[ptp].max_offset_ns` in the daemon config; defaults 2000 ms and
+1 000 000 ns), and that interface exists.
 
 ```
 systemctl --user reload obake-ravenna
