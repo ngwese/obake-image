@@ -46,7 +46,7 @@ case "$phase" in
 	finish
 	;;
 2)
-	[ "$(version)" = "0.6.0" ] || fail "not-new-version(ver=$(version))"
+	[ "$(version)" = "0.6.1" ] || fail "not-new-version(ver=$(version))"
 	[ "$(cat /home/obake/obake-user-marker 2>/dev/null)" = user ] || fail "home-lost"
 	[ "$(cat /home/obake/shape.conf 2>/dev/null)" = shape ] || fail "shapes-lost"
 	obake-update apply "$bad" >/tmp/bad.log 2>&1 || fail "bad-install"
@@ -61,7 +61,7 @@ case "$phase" in
 	;;
 *)
 	[ "$(booted)" = "rootfs.1" ] || fail "not-reverted(booted=$(booted))"
-	[ "$(version)" = "0.6.0" ] || fail "wrong-version(ver=$(version))"
+	[ "$(version)" = "0.6.1" ] || fail "wrong-version(ver=$(version))"
 	[ "$(cat /home/obake/shape.conf 2>/dev/null)" = shape ] || fail "shapes-lost-after-revert"
 	[ "$(home_sum)" = "$(cat /home/obake/.obake-home.sha 2>/dev/null)" ] ||
 		fail "user-partition-modified"
