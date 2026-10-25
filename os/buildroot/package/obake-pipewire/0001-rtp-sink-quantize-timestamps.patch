@@ -1,0 +1,84 @@
+rtp-sink: quantize outgoing timestamps onto the packet grid
+
+PipeWire 1.6.9 reads sess.ts-direct in the RTP stream but the sink
+never copies that module argument onto the stream, so the flag is
+ignored. The stamp is then ts_offset + ts_align + position, and
+ts_align is the graph position captured at sync. That freezes a phase
+which is not a multiple of rtp.framecount. AES67 mediaclk:direct=0
+requires the phase to be zero.
+
+Forward sess.ts-direct to the stream. Add sess.ts-quantize, default
+false. When set, each outgoing RTP timestamp is rounded down so
+timestamp % rtp.framecount == 0. Spacing between full packets is
+unchanged because those timestamps already advance by framecount.
+
+---
+--- a/src/modules/module-rtp/audio.c	2026-09-17 03:10:22.000000000 -0700
++++ b/src/modules/module-rtp/audio.c	2026-10-24 18:47:38.168256264 -0700
+@@ -547,6 +547,9 @@
+ 			header.m = 0;
+ 
+ 		rtp_timestamp = impl->ts_offset + impl->ts_align + (set_timestamp ? set_timestamp : timestamp);
++		/* mediaclk:direct=0 requires the timestamp on the packet grid. */
++		if (impl->quantize_timestamp && impl->psamples > 1)
++			rtp_timestamp -= rtp_timestamp % impl->psamples;
+ 
+ 		header.sequence_number = htons(impl->seq);
+ 		header.timestamp = htonl(rtp_timestamp);
+--- a/src/modules/module-rtp/stream.c	2026-09-17 03:10:22.000000000 -0700
++++ b/src/modules/module-rtp/stream.c	2026-10-24 18:47:38.168431534 -0700
+@@ -131,6 +131,7 @@
+ 	float last_time;
+ 
+ 	unsigned direct_timestamp:1;
++	unsigned quantize_timestamp:1;
+ 	unsigned always_process:1;
+ 	unsigned have_sync:1;
+ 	unsigned receiving:1;
+@@ -795,6 +796,7 @@
+ 		impl->marker_on_first = 1;
+ 	impl->ignore_ssrc = pw_properties_get_bool(props, "sess.ignore-ssrc", false);
+ 	impl->direct_timestamp = pw_properties_get_bool(props, "sess.ts-direct", false);
++	impl->quantize_timestamp = pw_properties_get_bool(props, "sess.ts-quantize", false);
+ 
+ 	if (direction == PW_DIRECTION_INPUT) {
+ 		impl->ssrc = pw_properties_get_uint32(props, "rtp.sender-ssrc", pw_rand32());
+@@ -919,6 +921,8 @@
+ 		pw_properties_setf(props, "rtp.ts-offset", "%u", impl->ts_offset);
+ 		pw_properties_set(props, "rtp.ts-refclk", str);
+ 	}
++	if (impl->quantize_timestamp)
++		pw_properties_set(props, "rtp.ts-quantize", "true");
+ 
+ 	process_latency_from_sess = pw_properties_get_bool(props, "process.latency.from.sess", false);
+ 
+--- a/src/modules/module-rtp-sink.c	2026-09-17 03:10:22.000000000 -0700
++++ b/src/modules/module-rtp-sink.c	2026-10-24 18:47:38.168518522 -0700
+@@ -64,6 +64,9 @@
+  * - `sess.latency.msec = <float>`: target node latency in milliseconds, default as rtp.ptime
+  * - `sess.ts-offset = <int>`: an offset to apply to the timestamp, default -1 = random offset
+  * - `sess.ts-refclk = <string>`: the name of a reference clock
++ * - `sess.ts-direct = <bool>`: stamp from the graph clock position, default false
++ * - `sess.ts-quantize = <bool>`: round the outgoing timestamp down to a multiple
++ *       of `rtp.framecount`, default false
+  * - `sess.media = <string>`: the media type audio|midi|opus, default audio
+  * - `stream.props = {}`: properties to be passed to the stream
+  * - `aes67.driver-group = <string>`: for AES67 streams, can be specified in order to allow
+@@ -154,6 +157,8 @@
+ 		"( audio.position=<channel map, default:"DEFAULT_POSITION"> ) "				\
+ 		"( audio.layout=<channel layout, default:"DEFAULT_LAYOUT"> ) "				\
+ 		"( aes67.driver-group=<driver driving the PTP send> ) "					\
++		"( sess.ts-direct=<bool, default:false> ) "						\
++		"( sess.ts-quantize=<bool, default:false> ) "						\
+ 		"( stream.props= { key=value ... } ) "
+ 
+ static const struct spa_dict_item module_info[] = {
+@@ -600,6 +605,8 @@
+ 	copy_props(impl, props, "sess.max-ptime");
+ 	copy_props(impl, props, "sess.latency.msec");
+ 	copy_props(impl, props, "sess.ts-refclk");
++	copy_props(impl, props, "sess.ts-direct");
++	copy_props(impl, props, "sess.ts-quantize");
+ 	copy_props(impl, props, "aes67.driver-group");
+ 
+ 	str = pw_properties_get(props, "local.ifname");
