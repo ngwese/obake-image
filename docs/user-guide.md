@@ -491,26 +491,38 @@ Live configuration:
 
 A missing file is copied from `/usr/share/obake/obake-ravenna/` on
 boot. The seed defines no sources and no sinks, so nothing transmits
-until you edit it. Example:
+until you edit it. Field-by-field behavior, the SDP and mDNS records,
+and how to link JACK shapes are in
+`services/obake-ravenna/REFERENCE_GUIDE.md`. Example:
 
 ```toml
+[graph]
+rate = 48000
+node_group = "obake.ravenna"
+
+[packet]
+frames = 48
+
+[multicast]
+address = "239.1.60.50"
+base_port = 5004
+ttl = 15
+
 [[source]]
 name = "obake-out-1"
 channels = 8
 format = "L24"
-frame_size = 48
-destination = "239.69.1.10:5004"
 
 [[sink]]
 name = "obake-in-1"
-device = "Studio-IO"
-stream = "PGM-1"
+device = "Anubis"
+stream = "Anubis_Combo 1/2"
 ```
 
-Sample rate comes from the live PipeWire graph. At 48000 Hz, allowed
-`frame_size` values are 6, 12, 16, 32, 48, 64, and 192. The NIC is the
-interface named in `ptp4l.cfg`. Streams stay down until `ptp4l` is
-enabled, locked, and that interface exists.
+`[graph].rate` is the media clock (48000 Hz allows packet sizes 6, 12,
+16, 32, 48, 64, and 192). The NIC is the interface named in
+`ptp4l.cfg`. Streams stay down until `ptp4l` is enabled, locked, and
+that interface exists.
 
 ```
 systemctl --user reload obake-ravenna
