@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright 2026 Greg Wuller
+# SPDX-License-Identifier: MIT
+
+[Unit]
+Description=obake rig session daemon
+After=pipewire.service
+Wants=pipewire.service
+
+[Service]
+Type=simple
+Environment=RUST_LOG=info
+ExecStart=/usr/bin/obake-session run
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

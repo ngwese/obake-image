@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright 2026 Greg Wuller
+# SPDX-License-Identifier: MIT
+#
+# Host profile for obake-session. Seeded once when missing.
+listen: "0.0.0.0:9477"
+environment: {}
+binds: []
+aliases:
+  mixpre:
+    card: II
+  adat:
+    card: ADAT
+  usbpre:
+    card: USBPre2

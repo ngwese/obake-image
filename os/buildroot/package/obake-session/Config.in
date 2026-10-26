@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright 2026 Greg Wuller
+# SPDX-License-Identifier: MIT
+
+config BR2_PACKAGE_OBAKE_SESSION
+	bool "obake-session"
+	depends on BR2_PACKAGE_OBAKE_PIPEWIRE
+	depends on BR2_PACKAGE_SYSTEMD
+	select BR2_PACKAGE_HOST_RUSTC
+	help
+	  Rig and session daemon for the obake host, plus the
+	  portable obake GraphQL client. Selected by the runtime layer
+	  on every board.
+
+comment "obake-session needs obake-pipewire and systemd"
+	depends on !BR2_PACKAGE_OBAKE_PIPEWIRE || !BR2_PACKAGE_SYSTEMD

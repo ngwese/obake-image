@@ -334,6 +334,47 @@ check_update_rollback() {
 	rauc status 2>/dev/null | grep -q '^Activated: rootfs.1' || return 1
 }
 
+
+# Every runtime board ships obake-session as an enabled user service and
+# the portable obake CLI. The home seed is created only when missing.
+check_obake_session() {
+	uid=$(id -u)
+	runtime="/run/user/${uid}"
+	export XDG_RUNTIME_DIR="$runtime"
+	export DBUS_SESSION_BUS_ADDRESS="unix:path=${runtime}/bus"
+	command -v obake-session >/dev/null 2>&1 || return 1
+	command -v obake >/dev/null 2>&1 || return 1
+	i=0
+	while [ "$i" -lt 15 ]; do
+		if systemctl --user is-active --quiet obake-session.service; then
+			break
+		fi
+		i=$((i + 1))
+		sleep 1
+	done
+	systemctl --user is-active --quiet obake-session.service || return 1
+	# Not a system service.
+	if [ -e /usr/lib/systemd/system/obake-session.service ] \
+		|| [ -e /etc/systemd/system/obake-session.service ]; then
+		return 1
+	fi
+	cfg=/home/obake/.config/obake-session
+	[ -d "$cfg" ] || return 1
+	[ -f "$cfg/host.yaml" ] || return 1
+	[ -d "$cfg/rigs" ] || return 1
+	# Empty rig list on first seed.
+	[ -z "$(find "$cfg/rigs" -maxdepth 1 -type f -name '*.yaml' 2>/dev/null)" ] || return 1
+	# A present rig file is not replaced by the seed (type C).
+	marker="$cfg/rigs/verify-keep.yaml"
+	printf 'instances: {}\nlinks: []\n' >"$marker"
+	stamp=$(stat -c %Y "$marker")
+	systemd-tmpfiles --create /etc/tmpfiles.d/obake-session.conf >/dev/null 2>&1 || true
+	[ -f "$marker" ] || return 1
+	[ "$(stat -c %Y "$marker")" = "$stamp" ] || return 1
+	rm -f "$marker"
+	return 0
+}
+
 # qdl ships obake-ravenna as an enabled user service with an empty
 # stream seed. Other boards omit the binary. ptp4l stays inactive until
 # the operator enables it.
@@ -467,6 +508,7 @@ run tmp-singularity-build check_tmp_singularity_build
 run ca-certificates check_ca_certificates
 run realtime-kernel check_realtime_kernel
 run pipewire-runtime check_pipewire_runtime
+run obake-session check_obake_session
 run obake-ravenna check_obake_ravenna
 run dns check_dns
 run avahi check_avahi
