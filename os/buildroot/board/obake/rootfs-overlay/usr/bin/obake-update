@@ -20,7 +20,7 @@ conf="${OBKA_UPDATE_CONF:-/etc/obake/update.conf}"
 : "${local_bundle:=}"
 
 usage() {
-	printf 'usage: obake-update {status|apply [<bundle-path>]|rollback}\n' >&2
+	printf 'usage: obake-update {status|apply [--cleanup] [--reboot] [<bundle-path>]|rollback}\n' >&2
 	exit 2
 }
 
@@ -138,8 +138,35 @@ cmd_status() {
 	}
 }
 
+# After a successful install: optionally remove an explicit caller path, then
+# optionally reboot. Never delete USB/HTTPS-discovered bundles via --cleanup.
+apply_success_hooks() {
+	explicit_path="$1"
+	do_cleanup="$2"
+	do_reboot="$3"
+
+	if [ "$do_cleanup" = 1 ]; then
+		if [ -n "$explicit_path" ]; then
+			rm -f -- "$explicit_path" || {
+				printf 'obake-update: failed to remove %s\n' "$explicit_path" >&2
+				exit 1
+			}
+			printf 'obake-update: removed %s\n' "$explicit_path" >&2
+		else
+			printf 'obake-update: --cleanup ignored (no caller-supplied path)\n' >&2
+		fi
+	fi
+
+	if [ "$do_reboot" = 1 ]; then
+		printf 'obake-update: rebooting\n' >&2
+		systemctl reboot
+	fi
+}
+
 cmd_apply() {
 	bundle_path="${1:-}"
+	do_cleanup="${2:-0}"
+	do_reboot="${3:-0}"
 
 	# Snapshot the shape configuration and mark the update pending before the
 	# inactive slot is written, so the health gate can restore on failure.
@@ -161,15 +188,22 @@ cmd_apply() {
 			exit 1
 		fi
 		printf 'obake-update: installing %s (local)\n' "$bundle_path" >&2
-		rauc install "$bundle_path"
-		return $?
+		if ! rauc install "$bundle_path"; then
+			return 1
+		fi
+		apply_success_hooks "$bundle_path" "$do_cleanup" "$do_reboot"
+		return 0
 	fi
 
 	# A local bundle (test/development) is used directly when configured.
 	if [ -n "$local_bundle" ] && [ -f "$local_bundle" ]; then
 		printf 'obake-update: installing %s (local)\n' "$local_bundle" >&2
-		rauc install "$local_bundle"
-		return $?
+		if ! rauc install "$local_bundle"; then
+			return 1
+		fi
+		# Configured local_bundle is not a caller-supplied apply path.
+		apply_success_hooks "" "$do_cleanup" "$do_reboot"
+		return 0
 	fi
 
 	# Prefer USB when configured and present (/media first, then probe mount).
@@ -178,18 +212,24 @@ cmd_apply() {
 			mnt="$(printf '%s\n' "$found" | sed -n 1p)"
 			bundle="$(printf '%s\n' "$found" | sed -n 2p)"
 			printf 'obake-update: installing %s (USB)\n' "$bundle" >&2
-			rauc install "$bundle"
-			rc=$?
+			if ! rauc install "$bundle"; then
+				cleanup_usb_mnt "$mnt"
+				return 1
+			fi
 			cleanup_usb_mnt "$mnt"
-			return $rc
+			apply_success_hooks "" "$do_cleanup" "$do_reboot"
+			return 0
 		fi
 	fi
 
 	bundle="$(fetch_https_bundle 2>/dev/null)" || bundle=""
 	if [ -n "$bundle" ]; then
 		printf 'obake-update: installing %s (HTTPS)\n' "$bundle" >&2
-		rauc install "$bundle"
-		return $?
+		if ! rauc install "$bundle"; then
+			return 1
+		fi
+		apply_success_hooks "" "$do_cleanup" "$do_reboot"
+		return 0
 	fi
 
 	# Last resort: USB even when not preferred.
@@ -197,10 +237,13 @@ cmd_apply() {
 		mnt="$(printf '%s\n' "$found" | sed -n 1p)"
 		bundle="$(printf '%s\n' "$found" | sed -n 2p)"
 		printf 'obake-update: installing %s (USB)\n' "$bundle" >&2
-		rauc install "$bundle"
-		rc=$?
+		if ! rauc install "$bundle"; then
+			cleanup_usb_mnt "$mnt"
+			return 1
+		fi
 		cleanup_usb_mnt "$mnt"
-		return $rc
+		apply_success_hooks "" "$do_cleanup" "$do_reboot"
+		return 0
 	fi
 
 	printf 'obake-update: no update bundle available\n' >&2
@@ -227,8 +270,42 @@ cmd_rollback() {
 }
 
 case "${1:-}" in
-status) cmd_status ;;
-apply) cmd_apply "${2:-}" ;;
-rollback) cmd_rollback ;;
-*) usage ;;
+status)
+	cmd_status
+	;;
+apply)
+	shift
+	do_cleanup=0
+	do_reboot=0
+	bundle_path=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--cleanup)
+			do_cleanup=1
+			;;
+		--reboot)
+			do_reboot=1
+			;;
+		-*)
+			printf 'obake-update: unknown apply flag: %s\n' "$1" >&2
+			usage
+			;;
+		*)
+			if [ -n "$bundle_path" ]; then
+				printf 'obake-update: unexpected argument: %s\n' "$1" >&2
+				usage
+			fi
+			bundle_path=$1
+			;;
+		esac
+		shift
+	done
+	cmd_apply "$bundle_path" "$do_cleanup" "$do_reboot"
+	;;
+rollback)
+	cmd_rollback
+	;;
+*)
+	usage
+	;;
 esac

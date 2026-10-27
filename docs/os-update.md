@@ -69,6 +69,7 @@ When building or installing an image, set `UPDATE_URL` (build) or
 obake-update status                      # running version, active slot, pending
 obake-update apply                       # USB under /media preferred, then HTTPS
 obake-update apply /path/to/bundle.raucb # install a local signed bundle
+obake-update apply --cleanup --reboot /path/to/bundle.raucb
 obake-update rollback                    # revert to the previous slot
 ```
 
@@ -76,6 +77,18 @@ obake-update rollback                    # revert to the previous slot
 the inactive root slot and its UKI, then activates the slot for the next boot.
 The active slot is never modified. A caller-supplied bundle path is installed
 with the same signature verification as USB and HTTPS sources.
+
+Optional `apply` flags (after a successful install only):
+
+- `--cleanup` — delete the caller-supplied bundle path. Ignored when the
+  bundle came from USB or HTTPS discovery (so removable media is not wiped).
+- `--reboot` — run `systemctl reboot`. When both flags are set with an
+  explicit path, cleanup runs before the reboot.
+
+From a laptop with SSH access, prefer
+`obake device update --target user@host <file-or-dir>`, which pushes a
+matching `obake-<semver>-<slot>.raucb` and runs
+`obake-update apply --cleanup --reboot` on the staged path.
 
 `rollback` is the manual counterpart to the health gate: it marks the currently
 booted slot bad, activates the other slot (`rauc status mark-active other`),
