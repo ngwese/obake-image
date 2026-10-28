@@ -5,6 +5,7 @@ source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-container/Config.in"
 source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-pipewire/Config.in"
 source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-wireplumber/Config.in"
 source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-ravenna/Config.in"
+source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-session/Config.in"
 source "$BR2_EXTERNAL_OBAKE_PATH/package/obake-runtime/Config.in"
 
 source "$BR2_EXTERNAL_OBAKE_PATH/package/singularity/Config.in"

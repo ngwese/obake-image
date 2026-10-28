@@ -584,13 +584,20 @@ automatically.
    ```
    obake-update status     # running version, active slot, pending/activated
    obake-update apply      # /media USB preferred, then the HTTPS endpoint
+   obake-update apply --cleanup --reboot /path/to/bundle.raucb
    obake-update rollback
    ```
 
    `apply` and `rollback` need root (persist health state, RAUC). Those commands
    re-exec via `sudo` when run as `obake`; the image grants passwordless sudo
    for all commands (including `sudo -s`). Removable media does not require
-   `mount`/`umount` in sudoers.
+   `mount`/`umount` in sudoers. After a successful install, `--cleanup`
+   removes a caller-supplied bundle path (not a USB-discovered file) and
+   `--reboot` runs `systemctl reboot` (cleanup first when both are set).
+
+   From a development machine, `obake device update --target user@host
+   <file-or-dir>` selects the matching slot/semver bundle over SSH, pushes
+   it, and runs `obake-update apply --cleanup --reboot` on the device.
 
 `apply` snapshots the shape configuration, writes the inactive slot, and marks
 the update pending; a health gate marks it good after a successful boot or
