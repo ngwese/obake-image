@@ -25,7 +25,7 @@ The host OS subsystem lives under `image/` in the top-level obake repository
 | `os/`           | Buildroot image build (pinned base, boards, runtime)      |
 | `build/`        | Containerized build entry point and build environment     |
 | `installer/`    | Headless installer for the image                          |
-| `host/`         | Host-level udev rules and PipeWire 1.6.9 / WirePlumber 0.5.18 configuration |
+| `host/`         | Host-level udev rules and PipeWire 1.6.10 / WirePlumber 0.5.18 configuration |
 | `verification/` | QEMU verification, reproducibility, and update-server tooling |
 | `docs/`         | This guide and the subsystem references                   |
 
@@ -90,7 +90,7 @@ unchanged pins reproduces the rootfs archive.
 
 The userland packages are grouped into `BR2_EXTERNAL` meta-packages:
 `obake-runtime` selects the audio and network runtime (`obake-pipewire`
-1.6.9, `obake-wireplumber` 0.5.18, `alsa-utils`, `avahi`, `nftables`,
+1.6.10, `obake-wireplumber` 0.5.18, `alsa-utils`, `avahi`, `nftables`,
 `libcurl`, `git`, and more), and
 `obake-container` selects the Singularity CE runtime built from source. Future
 layers are added the same way. The realtime kernel is built from the pinned
@@ -412,6 +412,21 @@ and `/etc/subgid` are seeded for `obake`); current shape `.def` files still use
 talk to the host PipeWire graph follow
 [`shapes/docs/pipewire-jack.md`](../../shapes/docs/pipewire-jack.md). See
 `host-config.md`.
+
+Factory WirePlumber enables UMP (MIDI 2.0 packets) on the ALSA sequencer
+bridge (`api.alsa.seq.ump = true` in
+`/usr/share/wireplumber/wireplumber.conf.d/10-obake-alsa-midi.conf`) so USB
+MIDI 2.0 hardware matches the qdl kernel. Mid-1.6.x PipeWire otherwise
+defaults to MIDI 1.0. To force MIDI 1.0 packets instead, drop a home
+override under `/home/obake/.config/wireplumber/wireplumber.conf.d/`:
+
+```
+monitor.alsa-midi.properties = {
+  api.alsa.seq.ump = false
+}
+```
+
+Then restart the WirePlumber user service.
 
 ## 7. Filesystem layout: read-only root vs writable contract
 

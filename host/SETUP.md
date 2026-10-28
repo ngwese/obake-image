@@ -11,6 +11,8 @@ Factory config is on the read-only image:
   RTKit and the realtime portal; realtime comes from unit rlimits
 - `/usr/share/wireplumber/wireplumber.conf.d/10-obake-alsa.conf` — ALSA
   period 128, three periods, for card ids ADAT, II, and USBPre2
+- `/usr/share/wireplumber/wireplumber.conf.d/10-obake-alsa-midi.conf` —
+  enable UMP (`api.alsa.seq.ump = true`) on the ALSA MIDI bridge
 - `/usr/lib/systemd/user/pipewire.service.d/10-obake-rt.conf` and
   `/usr/lib/systemd/user/wireplumber.service.d/10-obake-rt.conf` —
   realtime limits on both user services

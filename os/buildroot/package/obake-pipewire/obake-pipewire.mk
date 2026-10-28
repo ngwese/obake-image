@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-OBAKE_PIPEWIRE_VERSION = 1.6.9
+OBAKE_PIPEWIRE_VERSION = 1.6.10
 OBAKE_PIPEWIRE_SITE = $(call github,PipeWire,pipewire,$(OBAKE_PIPEWIRE_VERSION))
 OBAKE_PIPEWIRE_SOURCE = pipewire-$(OBAKE_PIPEWIRE_VERSION).tar.gz
 OBAKE_PIPEWIRE_LICENSE = MIT, LGPL-2.1+ (libspa-alsa), GPL-2.0 (libjackserver)

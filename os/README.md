@@ -73,7 +73,7 @@ keys there; an empty directory is the default. RAUC's release keyring at
 The packages the shapes build and run on form a separate **runtime layer**, a
 `BR2_EXTERNAL` meta-package `obake-runtime` (`package/obake-runtime/Config.in`)
 whose `select`s name the layer once so a defconfig reuses it. It currently
-selects `obake-pipewire` (PipeWire 1.6.9), `obake-wireplumber` (WirePlumber
+selects `obake-pipewire` (PipeWire 1.6.10), `obake-wireplumber` (WirePlumber
 0.5.18), `alsa-utils`, `usb-modeswitch`, `nftables`, `avahi`
 (+ daemon), `nss-mdns`, `libcurl` (+ the `curl` binary), `iproute2`, `sudo`,
 `git`, and `obake-container`. Enable it with `BR2_PACKAGE_OBAKE_RUNTIME=y`.
@@ -91,7 +91,7 @@ cryptsetup, FUSE3, seccomp, squashfs tools) apart from the audio/network
 runtime. Future changes add further meta-packages (developer tooling,
 audio-over-IP) the same way.
 
-`obake-pipewire` (`package/obake-pipewire/`) builds PipeWire **1.6.9** with
+`obake-pipewire` (`package/obake-pipewire/`) builds PipeWire **1.6.10** with
 the daemon, the ALSA plugin, and `pipewire-jack`. The plugin that would make
 PipeWire a client of `jackd` is disabled, and so is PulseAudio. There is no
 `jackd` and no `jackdbus`. `obake-wireplumber` (`package/obake-wireplumber/`)
